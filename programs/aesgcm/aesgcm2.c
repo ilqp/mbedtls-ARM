@@ -1,5 +1,5 @@
 /*
- *  AES-256 file encryption program
+ *  AES-GCM file encryption program
  *
  *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
  *  SPDX-License-Identifier: Apache-2.0
@@ -35,7 +35,9 @@
 
 #include "mbedtls/gcm.h"
 #include "mbedtls/aes.h"
-#include "mbedtls/md.h"
+
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,9 +57,9 @@
 #define MODE_DECRYPT    1
 
 #define USAGE   \
-    "\n  aescrypt2 <mode> <input filename> <output filename> <key>\n" \
+    "\n  aescrypt2 <mode> <input filename> <output filename>\n" \
     "\n   <mode>: 0 = encrypt, 1 = decrypt\n" \
-    "\n  example: aescrypt2 0 file file.aes hex:E76B2413958B00E193\n" \
+    "\n  example: aescrypt2 0 file file.aes\n" \
     "\n"
 
 #if !defined(MBEDTLS_AES_C) || !defined(MBEDTLS_SHA256_C) || \
@@ -75,21 +77,20 @@ int main( int argc, char *argv[] )
     int ret = 1;
 
     unsigned int i, n;
-    int mode, lastn;
+    int mode;
     size_t keylen;
     FILE *fkey, *fin = NULL, *fout = NULL;
 
-    char *p;
-
     unsigned char IV[16];
     unsigned char tmp[16];
-    unsigned char key[512];
-    unsigned char digest[32];
+    unsigned char key[48];
+    unsigned char digest[16];
     unsigned char buffer[1024];
     unsigned char diff;
 
     mbedtls_gcm_context gcm_ctx;
-    mbedtls_md_context_t sha_ctx;
+    mbedtls_entropy_context entropy_ctx;
+    mbedtls_ctr_drbg_context ctr_drbg_ctx;
 
 #if defined(_WIN32_WCE)
     long filesize, offset;
@@ -100,20 +101,10 @@ int main( int argc, char *argv[] )
       off_t filesize, offset;
 #endif
 
-    mbedtls_gcm_init( &gcm_ctx );
-    mbedtls_md_init( &sha_ctx );
-
-    ret = mbedtls_md_setup( &sha_ctx, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 1 );
-    if( ret != 0 )
-    {
-        mbedtls_printf( "  ! mbedtls_md_setup() returned -0x%04x\n", -ret );
-        goto exit;
-    }
-
     /*
      * Parse the command-line arguments.
      */
-    if( argc != 5 )
+    if( argc != 4 )
     {
         mbedtls_printf( USAGE );
 
@@ -158,34 +149,52 @@ int main( int argc, char *argv[] )
     /*
      * Read the secret key from file or command line
      */
-    if( ( fkey = fopen( argv[4], "rb" ) ) != NULL )
+
+    mbedtls_entropy_init( &entropy_ctx );
+    mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
+    if( ( fkey = fopen( "aes_key.bin", "rb" ) ) != NULL )
     {
         keylen = fread( key, 1, sizeof( key ), fkey );
         fclose( fkey );
     }
     else
     {
-        if( memcmp( argv[4], "hex:", 4 ) == 0 )
-        {
-            p = &argv[4][4];
-            keylen = 0;
+        /*
+         * Initialize random number generation
+         */
+        mbedtls_printf( "  aes_key.bin doesnt exist Create a new key in next step...\n" );
+        mbedtls_printf( "  . Seeding the random number generator..." );
+        fflush( stdout );
 
-            while( sscanf( p, "%02X", &n ) > 0 &&
-                   keylen < (int) sizeof( key ) )
-            {
-                key[keylen++] = (unsigned char) n;
-                p += 2;
-            }
+        ret = mbedtls_ctr_drbg_seed( &ctr_drbg_ctx, mbedtls_entropy_func, &entropy_ctx,
+                                     (const unsigned char *) "RANDOM_GEN", 10 );
+        if( ret != 0 ) {
+            mbedtls_printf("  . mbedtls_ctr_drbg_seed() returned %d", ret);
+            goto exit;
         }
-        else
+
+        mbedtls_ctr_drbg_set_prediction_resistance( &ctr_drbg_ctx, MBEDTLS_CTR_DRBG_PR_OFF );
+        mbedtls_printf(" ok\n");
+
+        /*
+         * Generate random data for AES Key and IV
+         */
+        mbedtls_printf( "  . Generate random AES Key..." );
+        fflush( stdout );
+
+        ret = mbedtls_ctr_drbg_random( &ctr_drbg_ctx, key, sizeof( key ) );
+        if( ret != 0 )
         {
-            keylen = strlen( argv[4] );
-
-            if( keylen > (int) sizeof( key ) )
-                keylen = (int) sizeof( key );
-
-            memcpy( key, argv[4], keylen );
+            mbedtls_printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret);
+            goto exit;
         }
+
+        if( ( fkey = fopen( "aes_key.bin", "wb" ) ) != NULL )
+        {
+            keylen = fwrite( key, 1, sizeof( key ), fkey );
+            fclose( fkey );
+        }
+        mbedtls_printf( " ok\n" );
     }
 
 #if defined(_WIN32_WCE)
@@ -222,32 +231,10 @@ int main( int argc, char *argv[] )
         goto exit;
     }
 
+    mbedtls_gcm_init( &gcm_ctx );
     if( mode == MODE_ENCRYPT )
     {
-        /*
-         * Generate the initialization vector as:
-         * IV = SHA-256( filesize || filename )[0..15]
-         */
-        for( i = 0; i < 8; i++ )
-            buffer[i] = (unsigned char)( filesize >> ( i << 3 ) );
-
-        p = argv[2];
-
-        mbedtls_md_starts( &sha_ctx );
-        mbedtls_md_update( &sha_ctx, buffer, 8 );
-        mbedtls_md_update( &sha_ctx, (unsigned char *) p, strlen( p ) );
-        mbedtls_md_finish( &sha_ctx, digest );
-
-        memcpy( IV, digest, 16 );
-
-        /*
-         * The last four bits in the IV are actually used
-         * to store the file size modulo the AES block size.
-         */
-        lastn = (int)( filesize & 0x0F );
-
-        IV[15] = (unsigned char)
-            ( ( IV[15] & 0xF0 ) | lastn );
+        memcpy( IV, key + 31, 16 );
 
         /*
          * Append the IV at the beginning of the output.
@@ -258,22 +245,7 @@ int main( int argc, char *argv[] )
             goto exit;
         }
 
-        /*
-         * Hash the IV and the secret key together 8192 times
-         * using the result to setup the AES context and HMAC.
-         */
-        memset( digest, 0,  32 );
-        memcpy( digest, IV, 16 );
-
-        for( i = 0; i < 8192; i++ )
-        {
-            mbedtls_md_starts( &sha_ctx );
-            mbedtls_md_update( &sha_ctx, digest, 32 );
-            mbedtls_md_update( &sha_ctx, key, keylen );
-            mbedtls_md_finish( &sha_ctx, digest );
-        }
-
-	mbedtls_gcm_setkey( &gcm_ctx, MBEDTLS_CIPHER_ID_AES, digest, 256);
+	mbedtls_gcm_setkey( &gcm_ctx, MBEDTLS_CIPHER_ID_AES, key, 256);
 	mbedtls_gcm_starts( &gcm_ctx, MBEDTLS_GCM_ENCRYPT, IV, sizeof(IV), NULL, 0);
 
         /*
@@ -290,9 +262,9 @@ int main( int argc, char *argv[] )
                 goto exit;
             }
 
-	    mbedtls_gcm_update( &gcm_ctx, 16, buffer, buffer);
+	    mbedtls_gcm_update( &gcm_ctx, n, buffer, buffer);
 
-            if( fwrite( buffer, 1, 16, fout ) != 16 )
+            if( fwrite( buffer, 1, n, fout ) != n )
             {
                 mbedtls_fprintf( stderr, "fwrite(%d bytes) failed\n", 16 );
                 goto exit;
@@ -304,7 +276,7 @@ int main( int argc, char *argv[] )
          */
 	mbedtls_gcm_finish( &gcm_ctx, digest, sizeof(digest));
 
-        if( fwrite( digest, 1, 32, fout ) != 32 )
+        if( fwrite( digest, 1, 16, fout ) != 16 )
         {
             mbedtls_fprintf( stderr, "fwrite(%d bytes) failed\n", 16 );
             goto exit;
@@ -328,45 +300,21 @@ int main( int argc, char *argv[] )
             goto exit;
         }
 
-        if( ( filesize & 0x0F ) != 0 )
-        {
-            mbedtls_fprintf( stderr, "File size not a multiple of 16.\n" );
-            goto exit;
-        }
-
         /*
-         * Subtract the IV + HMAC length.
+         * Subtract the IV + GCM Digest length.
          */
-        filesize -= ( 16 + 32 );
+        filesize -= ( 16 + 16 );
 
         /*
          * Read the IV and original filesize modulo 16.
          */
-        if( fread( buffer, 1, 16, fin ) != 16 )
+        if( fread( IV, 1, 16, fin ) != 16 )
         {
             mbedtls_fprintf( stderr, "fread(%d bytes) failed\n", 16 );
             goto exit;
         }
 
-        memcpy( IV, buffer, 16 );
-        lastn = IV[15] & 0x0F;
-
-        /*
-         * Hash the IV and the secret key together 8192 times
-         * using the result to setup the AES context and HMAC.
-         */
-        memset( digest, 0,  32 );
-        memcpy( digest, IV, 16 );
-
-        for( i = 0; i < 8192; i++ )
-        {
-            mbedtls_md_starts( &sha_ctx );
-            mbedtls_md_update( &sha_ctx, digest, 32 );
-            mbedtls_md_update( &sha_ctx, key, keylen );
-            mbedtls_md_finish( &sha_ctx, digest );
-        }
-
-	mbedtls_gcm_setkey( &gcm_ctx, MBEDTLS_CIPHER_ID_AES, digest, 256);
+	mbedtls_gcm_setkey( &gcm_ctx, MBEDTLS_CIPHER_ID_AES, key, 256);
 	mbedtls_gcm_starts( &gcm_ctx, MBEDTLS_GCM_DECRYPT, IV, sizeof(IV), NULL, 0);
 
         /*
@@ -374,17 +322,18 @@ int main( int argc, char *argv[] )
          */
         for( offset = 0; offset < filesize; offset += 16 )
         {
-            if( fread( buffer, 1, 16, fin ) != 16 )
+            n = ( filesize - offset > 16 ) ? 16 : (int)
+                ( filesize - offset );
+
+            if( fread( buffer, 1, n, fin ) != n )
             {
                 mbedtls_fprintf( stderr, "fread(%d bytes) failed\n", 16 );
                 goto exit;
             }
 
-            memcpy( tmp, buffer, 16 );
+            memcpy( tmp, buffer, n );
 
-	    mbedtls_gcm_update( &gcm_ctx, 16, tmp, buffer);
-            n = ( lastn > 0 && offset == filesize - 16 )
-                ? lastn : 16;
+	    mbedtls_gcm_update( &gcm_ctx, n, tmp, buffer);
 
             if( fwrite( buffer, 1, n, fout ) != (size_t) n )
             {
@@ -398,21 +347,20 @@ int main( int argc, char *argv[] )
          */
 	mbedtls_gcm_finish( &gcm_ctx, digest, sizeof(digest));
 
-        if( fread( buffer, 1, 32, fin ) != 32 )
+        if( fread( buffer, 1, 16, fin ) != 16 )
         {
-            mbedtls_fprintf( stderr, "fread(%d bytes) failed\n", 32 );
+            mbedtls_fprintf( stderr, "fread(%d bytes) failed\n", 16 );
             goto exit;
         }
 
         /* Use constant-time buffer comparison */
         diff = 0;
-        for( i = 0; i < 32; i++ )
+        for( i = 0; i < 16; i++ )
             diff |= digest[i] ^ buffer[i];
 
         if( diff != 0 )
         {
-            mbedtls_fprintf( stderr, "HMAC check failed: wrong key, "
-                             "or file corrupted.\n" );
+            mbedtls_fprintf( stderr, "HMAC check failed: wrong key, or file corrupted.\n" );
             goto exit;
         }
     }
@@ -438,7 +386,8 @@ exit:
     memset( digest, 0, sizeof( digest ) );
 
     mbedtls_gcm_free( &gcm_ctx );
-    mbedtls_md_free( &sha_ctx );
+    mbedtls_entropy_free( &entropy_ctx );
+    mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
 
     return( ret );
 }
