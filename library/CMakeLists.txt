@@ -2,6 +2,14 @@ option(USE_STATIC_MBEDTLS_LIBRARY "Build mbed TLS static library." ON)
 option(USE_SHARED_MBEDTLS_LIBRARY "Build mbed TLS shared library." OFF)
 option(LINK_WITH_PTHREAD "Explicitly link mbed TLS library to pthread." OFF)
 
+set(src_aesgcm
+    aes.c
+    cipher.c
+    cipher_wrap.c
+    gcm.c
+    platform_util.c
+)
+
 set(src_crypto
     aes.c
     aesni.c
@@ -132,13 +140,20 @@ if(USE_STATIC_MBEDTLS_LIBRARY AND USE_SHARED_MBEDTLS_LIBRARY)
     set(mbedtls_static_target "mbedtls_static")
     set(mbedx509_static_target "mbedx509_static")
     set(mbedcrypto_static_target "mbedcrypto_static")
+    set(mbedaesgcm_static_target "mbedaesgcm_static")
 elseif(USE_STATIC_MBEDTLS_LIBRARY)
     set(mbedtls_static_target "mbedtls")
     set(mbedx509_static_target "mbedx509")
     set(mbedcrypto_static_target "mbedcrypto")
+    set(mbedaesgcm_static_target "mbedaesgcm")
 endif()
 
 if(USE_STATIC_MBEDTLS_LIBRARY)
+    add_library(${mbedaesgcm_static_target} STATIC ${src_aesgcm})
+    set_target_properties(${mbedaesgcm_static_target} PROPERTIES OUTPUT_NAME mbedaesgcm)
+    target_link_libraries(${mbedaesgcm_static_target} ${libs})
+    target_compile_definitions(${mbedaesgcm_static_target} PRIVATE MBEDTLS_CONFIG_FILE="mbedtls/config_aesgcm.h")
+
     add_library(${mbedcrypto_static_target} STATIC ${src_crypto})
     set_target_properties(${mbedcrypto_static_target} PROPERTIES OUTPUT_NAME mbedcrypto)
     target_link_libraries(${mbedcrypto_static_target} ${libs})
@@ -151,7 +166,7 @@ if(USE_STATIC_MBEDTLS_LIBRARY)
     set_target_properties(${mbedtls_static_target} PROPERTIES OUTPUT_NAME mbedtls)
     target_link_libraries(${mbedtls_static_target} ${libs} ${mbedx509_static_target})
 
-    install(TARGETS ${mbedtls_static_target} ${mbedx509_static_target} ${mbedcrypto_static_target}
+    install(TARGETS ${mbedaesgcm_static_target} ${mbedtls_static_target} ${mbedx509_static_target} ${mbedcrypto_static_target}
             DESTINATION ${LIB_INSTALL_DIR}
             PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 endif(USE_STATIC_MBEDTLS_LIBRARY)
