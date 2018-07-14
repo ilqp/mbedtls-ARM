@@ -13,6 +13,9 @@ target_link_libraries(ecdh_curve25519 mbedtls)
 add_executable(ecdh_secp256r1 ecdh_secp256r1.c)
 target_link_libraries(ecdh_secp256r1 mbedtls)
 
+add_executable(encrypt_to_server encrypt_to_server.c)
+target_link_libraries(encrypt_to_server mbedtls)
+
 add_executable(ecdsa ecdsa.c)
 target_link_libraries(ecdsa mbedtls)
 
@@ -61,6 +64,6 @@ target_link_libraries(pk_encrypt mbedtls)
 add_executable(pk_decrypt pk_decrypt.c)
 target_link_libraries(pk_decrypt mbedtls)
 
-install(TARGETS ecdh_secp256r1 ecdh_curve25519 dh_client dh_genprime dh_server key_app mpi_demo rsa_genkey rsa_sign rsa_verify rsa_encrypt rsa_decrypt pk_encrypt pk_decrypt pk_sign pk_verify gen_key
+install(TARGETS encrypt_to_server ecdh_secp256r1 ecdh_curve25519 dh_client dh_genprime dh_server key_app mpi_demo rsa_genkey rsa_sign rsa_verify rsa_encrypt rsa_decrypt pk_encrypt pk_decrypt pk_sign pk_verify gen_key
         DESTINATION "bin"
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
