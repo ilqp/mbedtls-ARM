@@ -25,7 +25,7 @@ typedef struct
 	mbedtls_ecp_point Qp;    /*!< The public key of the server. */
 	mbedtls_mpi z;           /*!< The shared secret. */
 }
-server_enc_context;
+server_enc_context_t;
 
 static void print_ecp_group_id_name(mbedtls_ecp_group_id id) {
     switch(id) {
@@ -51,6 +51,7 @@ static void print_ecp_point(mbedtls_ecp_point pt) {
 	mbedtls_mpi_write_file("    Y: ", &pt.Y, 16, NULL);
 	mbedtls_mpi_write_file("    Z: ", &pt.Z, 16, NULL);
 }
+
 static void print_ecp_group(mbedtls_ecp_group grp) {
 	printf("Information about group:\n");
     	print_ecp_group_id_name(grp.id);
@@ -79,7 +80,7 @@ void print_progress(char *msg) {
 	printf("%s", msg), fflush( stdout );
 }
 
-int generate_client_keypair( server_enc_context *enc_ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
+int generate_client_keypair( server_enc_context_t *enc_ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 	int ret = 1;
 	ret = mbedtls_ecdh_gen_public( &enc_ctx->grp, &enc_ctx->d, &enc_ctx->Q,
 				       mbedtls_ctr_drbg_random, ctr_drbg_ctx );
@@ -148,16 +149,16 @@ int read_server_pkey( mbedtls_ecp_point *Qp) {
 	return ret;
 }
 
-int compute_shared_key( server_enc_context *enc_ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
+int compute_shared_key( server_enc_context_t *enc_ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 	return mbedtls_ecdh_compute_shared( &enc_ctx->grp, &enc_ctx->z, &enc_ctx->Qp, &enc_ctx->d,
 					   mbedtls_ctr_drbg_random, ctr_drbg_ctx );
 }
 
-void server_enc_context_init(server_enc_context *enc_ctx) {
-	memset( enc_ctx, 0, sizeof( server_enc_context ) );
+void server_enc_context_init(server_enc_context_t *enc_ctx) {
+	memset( enc_ctx, 0, sizeof( server_enc_context_t ) );
 }
 
-void server_enc_context_free(server_enc_context *enc_ctx) {
+void server_enc_context_free(server_enc_context_t *enc_ctx) {
 	if( enc_ctx == NULL) return;
 
 	mbedtls_ecp_group_free( &enc_ctx->grp );
@@ -171,7 +172,7 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff) {
 	((void) in_aes_key);
 	((void) output_buff);
 
-	server_enc_context enc_ctx;
+	server_enc_context_t enc_ctx;
 	mbedtls_entropy_context entropy_ctx;
 	mbedtls_ctr_drbg_context ctr_drbg_ctx;
 
