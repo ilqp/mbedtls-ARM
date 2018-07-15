@@ -172,6 +172,7 @@ void server_enc_context_free(server_enc_context_t *enc_ctx) {
 	mbedtls_mpi_free( &enc_ctx->d  );
 	mbedtls_mpi_free( &enc_ctx->z  );
 }
+
 int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff) {
 
 	((void) in_aes_key);
@@ -323,7 +324,6 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	/*
 	 * Final AES Key = Output of 8192 time SHA-256 hash of IV and the random key together.
 	 */
-	// memcpy( digest, aes_key->key, keylen );
 
 	for( int i = 0; i < 8192; i++ ) {
 		mbedtls_md_starts( &sha_ctx );
@@ -331,8 +331,6 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 		mbedtls_md_update( &sha_ctx, aes_key->IV, keylen );
 		mbedtls_md_finish( &sha_ctx, aes_key->key );
 	}
-
-	// memcpy( aes_key->key, digest, keylen );
 
 	return ret;
 }
@@ -382,7 +380,7 @@ int main() {
 	mbedtls_entropy_free( &entropy_ctx );
 
 	unsigned char *output_buff = NULL;
-	// enc_to_server(aes_key->key, output_buff);
+	enc_to_server(aes_key.key, output_buff);
 exit:
 	aes_free( &aes_key );
 	return ret;
