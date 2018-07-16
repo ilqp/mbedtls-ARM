@@ -174,14 +174,13 @@ void server_enc_context_free(server_enc_context_t *enc_ctx) {
 	mbedtls_mpi_free( &enc_ctx->z  );
 }
 
-int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff) {
+int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
+                  mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 
 	((void) in_aes_key);
 	((void) output_buff);
 
 	server_enc_context_t enc_ctx;
-	mbedtls_entropy_context entropy_ctx;
-	mbedtls_ctr_drbg_context ctr_drbg_ctx;
 
 	int curve = MBEDTLS_ECP_DP_SECP256R1;
 	int ret = 1;
@@ -190,20 +189,6 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff) {
 	 * Initialize required contexts.
 	 */
 	server_enc_context_init( &enc_ctx );
-	mbedtls_entropy_init( &entropy_ctx );
-	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
-
-	/*
-	 * Seed the random number generator.
-	 */
-	print_progress( (char *)"  . Seeding the random number generator..." );
-	ret = mbedtls_ctr_drbg_seed( &ctr_drbg_ctx, mbedtls_entropy_func, &entropy_ctx, NULL, 0);
-	                             // (const unsigned char *) "RANDOM_GEN", 10 );
-	if( ret != 0 ) {
-		printf( "  . failed!\n\n\t . mbedtls_ctr_drbg_seed() returned %d", ret), fflush(stdout);
-		goto cleanup;
-	}
-	print_progress(  (char *)"  . OK!\n");
 
 	/*
 	 * Load the group information.
@@ -225,7 +210,7 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff) {
 	 * Generate client's public key pair;
 	 */
 	print_progress(  (char *)"  . Generating public key pair for client..." );
-	ret = generate_client_keypair( &enc_ctx, &ctr_drbg_ctx );
+	ret = generate_client_keypair( &enc_ctx, ctr_drbg_ctx );
 	if( ret != 0 ) {
 		goto cleanup;
 	}
@@ -257,7 +242,7 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff) {
 #endif
 
 	print_progress(  (char *)"  . Compute the shared secret..." );
-	ret = compute_shared_key( &enc_ctx, &ctr_drbg_ctx );
+	ret = compute_shared_key( &enc_ctx, ctr_drbg_ctx );
 	if( ret != 0 ) {
 		printf( " failed\n  ! compute_shared_key() returned %d\n", ret ), fflush(stdout);
 		goto cleanup;
@@ -275,8 +260,6 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff) {
 
 cleanup:
 	server_enc_context_free( &enc_ctx );
-	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
-	mbedtls_entropy_free( &entropy_ctx );
 	return ret;
 
 }
@@ -324,7 +307,7 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	 */
 
 	print_progress( (char *)"  . Use HKDF over random AES key to add more entropy...");
-	ret = mbedtls_hkdf_extract(sha_ctx.md_info, NULL, 0, aes_key->key, aes_key->keylen_bits/8, aes_key->key);
+	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, aes_key->key, aes_key->keylen_bits/8, aes_key->key);
 	if( ret != 0 ) {
 		printf("  . mbedtls_hkdf_extract() failed, ret = %d\n", ret ), fflush(stdout);
 		free(aes_key->key), free(aes_key->IV);
@@ -371,6 +354,9 @@ int main() {
 	mbedtls_ctr_drbg_set_prediction_resistance( &ctr_drbg_ctx, MBEDTLS_CTR_DRBG_PR_OFF );
 	print_progress(  (char *)"  . OK!\n");
 
+	/*
+	 * Setup SHA-256 as MD for HKDF.
+	 */
 	print_progress( (char *)"  . Setup SHA-256 MD...");
 	ret = mbedtls_md_setup( &sha_ctx, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 1 );
 	if( ret != 0 ) {
@@ -379,19 +365,22 @@ int main() {
 	}
 	printf("  OK!\n");
 
-	print_progress( (char *)"  . Generate ephemeral AES Key and IV..." );
+	/*
+	 * Initialize the AES Key and IV.
+	 */
+	print_progress( (char *)"  . Generate ephemeral AES Key and IV... started\n" );
 	ret = aes_key_init( &aes_key, 256, &ctr_drbg_ctx, &sha_ctx );
 	if( ret != 0 ) {
 		goto exit;
 	}
-	printf("  OK!\n");
-
-	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
-	mbedtls_entropy_free( &entropy_ctx );
+	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!" );
 
 	unsigned char *output_buff = NULL;
-	enc_to_server(aes_key.key, output_buff);
+	enc_to_server(aes_key.key, output_buff, &ctr_drbg_ctx);
 exit:
+
+	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
+	mbedtls_entropy_free( &entropy_ctx);
 	aes_free( &aes_key );
 	return ret;
 }
