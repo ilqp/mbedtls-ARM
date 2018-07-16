@@ -31,6 +31,10 @@
 
 #define PERSIST_AES_KEY_MATERIAL
 #define USE_PERSISTED_AES_KEY_MATERIAL
+
+#define PERSIST_CLIENT_KEY_MATERIAL
+
+
 typedef struct
 {
 	mbedtls_ecp_group grp;   /*!< The elliptic curve used. */
@@ -114,10 +118,104 @@ int generate_client_keypair( server_enc_context_t *enc_ctx, mbedtls_ctr_drbg_con
 		printf( " failed\n  ! mbedtls_mpi_lset returned %d\n", ret ), fflush(stdout);
 	}
 
+#ifdef PERSIST_CLIENT_KEY_MATERIAL
+	print_progress( (char *)"  . Write Client Key material to persistent storage..." );
+	FILE *f_cli_d = NULL, *f_cli_QX = NULL, *f_cli_QY = NULL;
+
+	if( ( f_cli_d = fopen( "cli_d.bin", "wb" ) ) == NULL ) {
+		printf("  . fopen(cli_d.bin,rb) failed\n");
+		return -1;
+	}
+
+	if( ( f_cli_QX = fopen( "cli_QX.bin", "wb" ) ) == NULL ) {
+		printf("  . fopen(cli_QX.bin,wb+) failed\n");
+		fclose( f_cli_d );
+		return -1;
+	}
+
+	if( ( f_cli_QY = fopen( "cli_QY.bin", "wb" ) ) == NULL ) {
+		printf("  . fopen(cli_QY.bin,wb+) failed\n");
+		fclose( f_cli_d ), fclose( f_cli_QX );
+		return -1;
+	}
+
+	ret = mbedtls_mpi_write_file( NULL, &enc_ctx->d, 16, f_cli_d );
+	fclose( f_cli_d );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
+		fclose( f_cli_QX ), fclose( f_cli_QY );
+		return ret;
+	}
+
+	ret = mbedtls_mpi_write_file( NULL, &enc_ctx->Q.X, 16, f_cli_QX );
+	fclose( f_cli_QX );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
+		fclose( f_cli_QY );
+		return ret;
+	}
+
+	ret = mbedtls_mpi_write_file( NULL, &enc_ctx->Q.Y, 16, f_cli_QY );
+	fclose( f_cli_QY );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
+		return ret;
+	}
+
+	printf(" OK!\n");
+#endif
+
 	return ret;
 }
 
-int read_server_pkey( mbedtls_ecp_point *Qp) {
+int read_client_keypair( server_enc_context_t *enc_ctx ) {
+	int ret = 1;
+
+	FILE *f_cli_d = NULL, *f_cli_QX = NULL, *f_cli_QY = NULL;
+
+	if( ( f_cli_d = fopen( "cli_d.bin", "rb" ) ) == NULL ) {
+		printf("  . fopen(cli_d.bin,rb) failed\n");
+		return -1;
+	}
+
+	if( ( f_cli_QX = fopen( "cli_QX.bin", "rb" ) ) == NULL ) {
+		printf("  . fopen(cli_QX.bin,rb) failed\n");
+		fclose( f_cli_d );
+		return -1;
+	}
+
+	if( ( f_cli_QY = fopen( "cli_QY.bin", "rb" ) ) == NULL ) {
+		printf("  . fopen(cli_QY.bin,rb) failed\n");
+		fclose( f_cli_d ), fclose( f_cli_QX );
+		return -1;
+	}
+
+	ret = mbedtls_mpi_read_file( &enc_ctx->d, 16, f_cli_d );
+	fclose( f_cli_d );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_read_file() returned %d\n", ret ), fflush(stdout);
+		fclose( f_cli_QX ), fclose( f_cli_QY );
+		return ret;
+	}
+
+	ret = mbedtls_mpi_read_file( &enc_ctx->Q.X, 16, f_cli_QX );
+	fclose( f_cli_QX );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_read_file() returned %d\n", ret ), fflush(stdout);
+		fclose( f_cli_QY );
+		return ret;
+	}
+
+	ret = mbedtls_mpi_read_file( &enc_ctx->Q.Y, 16, f_cli_QY );
+	fclose( f_cli_QY );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_read_file() returned %d\n", ret ), fflush(stdout);
+		return ret;
+	}
+
+	return 0;
+}
+int read_server_key_material( mbedtls_ecp_point *Qp) {
 
 	FILE *f_srv_QX = NULL;
 	FILE *f_srv_QY = NULL;
