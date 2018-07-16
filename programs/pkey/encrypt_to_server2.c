@@ -269,43 +269,51 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	size_t keylen;
 	int ret = 1;
 
-	if( keylen_bits != 128 || keylen_bits != 192 || keylen_bits != 256 ) {
+	/*
+	 * Sanity check for Key lengths.
+	 */
+	if( keylen_bits != 128 || keylen_bits != 192 || keylen_bits != 256 )
 		keylen = 32, keylen_bits = 256;
-	} else {
+	else
 		keylen = keylen_bits / 8;
-	}
 
-	if(aes_key->key) free( aes_key->key );
+	if(aes_key->key)
+		free( aes_key->key );
+
 	aes_key->key = (unsigned char *) malloc(keylen);
 	aes_key->keylen_bits = keylen_bits;
 
 	/*
 	* Generate random data for AES Key and IV
 	*/
+	print_progress( (char *)"  . Generate random data for AES Key material... ");
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->key, keylen );
 	if( ret != 0 ) {
 		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
 		free(aes_key->key);
 		return ret;
 	}
+	printf("  OK!\n");
 
-	if(aes_key->IV) free( aes_key->IV );
+	if(aes_key->IV)
+		free( aes_key->IV );
 	aes_key->IV = (unsigned char *) malloc(12);
 
+	print_progress( (char *)"  . Generate random data for AES IV");
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->IV, 12 );
 	if( ret != 0 ) {
 		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
 		free(aes_key->key), free(aes_key->IV);
 		return ret;
 	}
+	printf("  OK!\n");
 
 #ifndef DDEBUG
 	print_buffer( (char *)"  . AES Key before HKDF : ", aes_key->key, aes_key->keylen_bits/8 );
 #endif
 	/*
-	 * Final AES Key = Output of 8192 time SHA-256 hash of IV and the random key together.
+	 * Use HKDF to increase the entropy of random AES Key material.
 	 */
-
 	print_progress( (char *)"  . Use HKDF over random AES key to add more entropy...");
 	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, aes_key->key, aes_key->keylen_bits/8, aes_key->key);
 	if( ret != 0 ) {
@@ -357,7 +365,7 @@ int main() {
 	/*
 	 * Setup SHA-256 as MD for HKDF.
 	 */
-	print_progress( (char *)"  . Setup SHA-256 MD...");
+	print_progress( (char *)"  . Setup SHA-256 MD for HKDF...");
 	ret = mbedtls_md_setup( &sha_ctx, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 1 );
 	if( ret != 0 ) {
 		printf( "  ! mbedtls_md_setup() returned -0x%04x\n", -ret );
@@ -368,15 +376,20 @@ int main() {
 	/*
 	 * Initialize the AES Key and IV.
 	 */
-	print_progress( (char *)"  . Generate ephemeral AES Key and IV... started\n" );
+	print_progress( (char *)"  . Generate ephemeral AES Key and IV... STARTED!\n" );
 	ret = aes_key_init( &aes_key, 256, &ctr_drbg_ctx, &sha_ctx );
 	if( ret != 0 ) {
 		goto exit;
 	}
-	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!" );
+	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
 
 	unsigned char *output_buff = NULL;
-	enc_to_server(aes_key.key, output_buff, &ctr_drbg_ctx);
+
+	print_progress( (char *)"  . Start Encryption to Server... STARTED!\n");
+	ret = enc_to_server(aes_key.key, output_buff, &ctr_drbg_ctx);
+	if( ret != 0 ) {
+		printf("  . Start Encryption to Server... Failed\n  . enc_to_server() return %d", ret );
+	}
 exit:
 
 	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
