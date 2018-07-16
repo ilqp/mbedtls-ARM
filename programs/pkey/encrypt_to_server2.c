@@ -21,6 +21,10 @@
 #include "mbedtls/hkdf.h"
 #include "mbedtls/gcm.h"
 
+/*
+ * Macros to control the operation
+ */
+
 #define MODE_ENCRYPT    0
 #define MODE_DECRYPT    1
 
@@ -34,6 +38,9 @@
 
 #define PERSIST_CLIENT_KEY_MATERIAL
 #define USE_PERSISTED_CLIENT_KEY_MATERIAL
+
+#define PERSIST_SERVER_KEY_MATERIAL
+#define USE_PERSISTED_SERVER_KEY_MATERIAL
 
 #define DEBUG
 #define TRACK_PROGRESS
