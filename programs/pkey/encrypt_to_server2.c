@@ -38,6 +38,7 @@
 #define DEBUG
 #define TRACK_PROGRESS
 
+#define CHECK_AND_RET( x ) { if ( (ret = x) == 0) return ret; }
 /*
  * Custom data types used
  */
@@ -112,66 +113,6 @@ void print_progress(char *msg) {
 	printf("%s", msg), fflush( stdout );
 }
 
-static int persist_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q,
-                              char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname) {
-	print_progress( (char *)"  . Write Client Key material to persistent storage..." );
-
-	int ret = 1;
-	FILE *f = NULL; //, *f_cli_QX = NULL, *f_cli_QY = NULL, *f_cli_QZ;
-
-	if( ( f = fopen( d_fname, "wb" ) ) == NULL ) {
-		printf("  . fopen(%s,rb) failed\n", d_fname);
-		return -1;
-	}
-
-	ret = mbedtls_mpi_write_file( NULL, d, 16, f );
-	fclose( f );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
-		return ret;
-	}
-
-	if( ( f = fopen( QX_fname, "wb" ) ) == NULL ) {
-		printf("  . fopen(%s,wb+) failed\n", QX_fname);
-		return -1;
-	}
-
-	ret = mbedtls_mpi_write_file( NULL, &Q->X, 16, f );
-	fclose( f );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
-		return ret;
-	}
-
-	if( ( f = fopen( QY_fname, "wb" ) ) == NULL ) {
-		printf("  . fopen(%s,wb+) failed\n", QY_fname);
-		return -1;
-	}
-
-	ret = mbedtls_mpi_write_file( NULL, &Q->Y, 16, f );
-	fclose( f );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
-		return ret;
-	}
-
-	if( ( f = fopen( QZ_fname, "wb" ) ) == NULL ) {
-		printf("  . fopen(%s,wb+) failed\n", QZ_fname);
-		return -1;
-	}
-
-	ret = mbedtls_mpi_write_file( NULL, &Q->Z, 16, f );
-	fclose( f );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
-		return ret;
-	}
-
-	printf(" OK!\n");
-
-	return ret;
-}
-
 int persist_aes_key_material(aes_key_t *aes_key, char *key_fname, char *iv_fname) {
 	FILE *f = NULL;
 
@@ -220,54 +161,81 @@ int generate_ec_keypair( server_enc_context_t *ctx, mbedtls_ctr_drbg_context *ct
 	return ret;
 }
 
-int read_client_keypair( server_enc_context_t *enc_ctx ) {
-	int ret = 1;
+int read_hexmpi_from_file( mbedtls_mpi *mp, char *fname) {
+	FILE *f = NULL;
 
-	FILE *f_cli_d = NULL, *f_cli_QX = NULL, *f_cli_QY = NULL;
-
-	if( ( f_cli_d = fopen( "cli_d.bin", "rb" ) ) == NULL ) {
-		printf("  . fopen(cli_d.bin,rb) failed\n");
+	if( ( f = fopen( fname, "rb" ) ) == NULL ) {
+		printf(" failed\n\n\t ! fopen(%s,rb) failed\n", fname);
 		return -1;
 	}
 
-	if( ( f_cli_QX = fopen( "cli_QX.bin", "rb" ) ) == NULL ) {
-		printf("  . fopen(cli_QX.bin,rb) failed\n");
-		fclose( f_cli_d );
-		return -1;
-	}
+	int ret = mbedtls_mpi_read_file( mp, 16, f );
+	fclose( f );
 
-	if( ( f_cli_QY = fopen( "cli_QY.bin", "rb" ) ) == NULL ) {
-		printf("  . fopen(cli_QY.bin,rb) failed\n");
-		fclose( f_cli_d ), fclose( f_cli_QX );
-		return -1;
-	}
-
-	ret = mbedtls_mpi_read_file( &enc_ctx->d, 16, f_cli_d );
-	fclose( f_cli_d );
 	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_read_file() returned %d\n", ret ), fflush(stdout);
-		fclose( f_cli_QX ), fclose( f_cli_QY );
-		return ret;
-	}
-
-	ret = mbedtls_mpi_read_file( &enc_ctx->Q.X, 16, f_cli_QX );
-	fclose( f_cli_QX );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_read_file() returned %d\n", ret ), fflush(stdout);
-		fclose( f_cli_QY );
-		return ret;
-	}
-
-	ret = mbedtls_mpi_read_file( &enc_ctx->Q.Y, 16, f_cli_QY );
-	fclose( f_cli_QY );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_read_file() returned %d\n", ret ), fflush(stdout);
+		printf( " failed\n\n\t ! mbedtls_mpi_read_file( %s ) returned %d\n",fname, ret );
+		fflush(stdout);
 		return ret;
 	}
 
 	return 0;
 }
 
+int write_hexmpi_from_file( mbedtls_mpi *mp, char *fname) {
+	FILE *f = NULL;
+
+	if( ( f = fopen( fname, "wb" ) ) == NULL ) {
+		printf(" failed\n\n\t ! fopen(%s,wb) failed\n", fname);
+		return -1;
+	}
+
+	int ret = mbedtls_mpi_write_file( NULL, mp, 16, f );
+	fclose( f );
+
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file( %s ) returned %d\n",fname, ret );
+		fflush(stdout);
+		return ret;
+	}
+
+	return 0;
+}
+
+int read_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q, char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname ) {
+	int ret = 1;
+
+	if( d_fname )
+		CHECK_AND_RET( read_hexmpi_from_file( d, d_fname) );
+
+	if( QX_fname )
+		CHECK_AND_RET( read_hexmpi_from_file( &Q->X, QX_fname) );
+
+	if( QY_fname )
+		CHECK_AND_RET( read_hexmpi_from_file( &Q->Y, QY_fname) );
+
+	if( QZ_fname )
+		CHECK_AND_RET( read_hexmpi_from_file( &Q->Z, QZ_fname) );
+
+	return 0;
+}
+
+int write_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q, char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname ) {
+	int ret = 1;
+
+	if( d_fname )
+		CHECK_AND_RET( write_hexmpi_from_file( d, d_fname) );
+
+	if( QX_fname )
+		CHECK_AND_RET( write_hexmpi_from_file( &Q->X, QX_fname) );
+
+	if( QY_fname )
+		CHECK_AND_RET( write_hexmpi_from_file( &Q->Y, QY_fname) );
+
+	if( QZ_fname )
+		CHECK_AND_RET( write_hexmpi_from_file( &Q->Z, QZ_fname) );
+
+	return 0;
+}
 int read_server_key_material( mbedtls_ecp_point *Qp) {
 
 	FILE *f_srv_QX = NULL;
@@ -374,7 +342,7 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key, FILE *f
 	 * Read client's key material from persisted file;
 	 */
 	print_progress(  (char *)"  . Read client's key material from persisted file..." );
-	ret = read_client_keypair( &enc_ctx );
+	ret = read_ec_keypair( &enc_ctx.d, &enc_ctx.Q, (char *)"cli_d.bin", (char *)"cli_QX.bin", (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
 	if( ret != 0 ) {
 		goto cleanup;
 	}
@@ -391,7 +359,7 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key, FILE *f
 	print_progress(  (char *)"  . OK!\n");
 
 #ifdef PERSIST_CLIENT_KEY_MATERIAL
-	persist_ec_keypair(&enc_ctx.d, &enc_ctx.Q,
+	write_ec_keypair(&enc_ctx.d, &enc_ctx.Q,
 	                   (char*)"cli_d.bin", (char*)"cli_QX.bin",
 	                   (char*)"cli_QY.bin", (char*)"cli_QZ.bin");
 #endif // PERSIST_CLIENT_KEY_MATERIAL
@@ -537,8 +505,14 @@ int read_aes_key_material( aes_key_t *aes_key ) {
 }
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
-int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context *ctr_drbg_ctx,
-                 mbedtls_md_context_t *sha_ctx) {
+void aes_key_init( aes_key_t *aes_key, size_t key_len, size_t iv_len) {
+	if(aes_key->key) free( aes_key->key );
+	if(aes_key->IV) free( aes_key->IV );
+
+	aes_key->key = (unsigned char *) malloc(key_len);
+	aes_key->IV = (unsigned char *) malloc(iv_len);
+}
+int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
 	size_t keylen;
 	int ret = 1;
 
@@ -550,12 +524,6 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	else
 		keylen = keylen_bits / 8;
 
-	if(aes_key->key)
-		free( aes_key->key );
-
-	aes_key->key = (unsigned char *) malloc(keylen);
-	aes_key->keylen_bits = keylen_bits;
-
 	/*
 	* Generate random data for AES Key and IV
 	*/
@@ -563,20 +531,14 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->key, keylen );
 	if( ret != 0 ) {
 		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
-		free(aes_key->key);
 		return ret;
 	}
 	printf("  OK!\n");
-
-	if(aes_key->IV)
-		free( aes_key->IV );
-	aes_key->IV = (unsigned char *) malloc(12);
 
 	print_progress( (char *)"  . Generate random data for AES IV");
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->IV, 12 );
 	if( ret != 0 ) {
 		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
-		free(aes_key->key), free(aes_key->IV);
 		return ret;
 	}
 	printf("  OK!\n");
@@ -795,6 +757,8 @@ int main( int argc, char *argv[] ) {
 	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
 	mbedtls_md_init( &sha_ctx );
 	mbedtls_gcm_init( &gcm_ctx );
+
+	aes_key_init( &aes_key, 32, 12 );
 	printf("  OK!\n");
 
 	off_t filesize;
@@ -854,48 +818,48 @@ int main( int argc, char *argv[] ) {
 	}
 	printf("  OK!\n");
 
-	/*
-	 * Initialize the AES Key and IV.
-	 */
+	if( mode == MODE_ENCRYPT ) {
+		unsigned char encrypted_aes_key[32];
+
+		/*
+		 * Initialize the AES Key and IV.
+		 */
 #ifdef USE_PERSISTED_AES_KEY_MATERIAL
-	print_progress( (char *)"  . Read previously persisted ephemeral AES Key and IV... " );
-	ret = read_aes_key_material( &aes_key );
-	if( ret != 0 ) {
-		goto exit;
-	}
-	printf("  OK!\n");
+		print_progress( (char *)"  . Read previously persisted ephemeral AES Key and IV... " );
+		ret = read_aes_key_material( &aes_key );
+		if( ret != 0 ) {
+			goto exit;
+		}
+		printf("  OK!\n");
 #else // USE_PERSISTED_AES_KEY_MATERIAL
-	print_progress( (char *)"  . Generate ephemeral AES Key and IV... STARTED!\n" );
-	ret = aes_key_init( &aes_key, 256, &ctr_drbg_ctx, &sha_ctx );
-	if( ret != 0 ) {
-		goto exit;
-	}
-	printf("  OK!\n");
-	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
+		print_progress( (char *)"  . Generate ephemeral AES Key and IV... STARTED!\n" );
+		ret = aes_key_gen( &aes_key, 256, &ctr_drbg_ctx, &sha_ctx );
+		if( ret != 0 ) {
+			goto exit;
+		}
+		print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
 
 #ifdef PERSIST_AES_KEY_MATERIAL
-	print_progress( (char *)"  . Write AES Key material to persistent storage..." );
-	ret = persist_aes_key_material( &aes_key, (char *)"aes_key.bin", (char *)"aes_iv.bin");
-	if( ret != 0 ) {
-		printf("  . Failed\n\n\t . persist_aes_key_material() returned %d", ret);
-	}
-	printf("  OK!\n");
+		print_progress( (char *)"  . Write AES Key material to persistent storage..." );
+		ret = persist_aes_key_material( &aes_key, (char *)"aes_key.bin", (char *)"aes_iv.bin");
+		if( ret != 0 ) {
+			printf("  . Failed\n\n\t . persist_aes_key_material() returned %d", ret);
+		}
+		printf("  OK!\n");
 #endif // PERSIST_AES_KEY_MATERIAL
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
 #ifndef DDEBUG
-	print_buffer( (char *)"  . Final AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
-	print_buffer( (char *)"  . Final AES IV : ", aes_key.IV, 12 );
+		print_buffer( (char *)"  . Final AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
+		print_buffer( (char *)"  . Final AES IV : ", aes_key.IV, 12 );
 #endif
-	if( mode == MODE_ENCRYPT ) {
-		unsigned char encrypted_aes_key[32];
 		print_progress( (char *)"  . Start Encryption to Server... STARTED!\n");
 		ret = enc_to_server( aes_key.key, &encrypted_aes_key[0], fout, &ctr_drbg_ctx, &sha_ctx );
 		if( ret != 0 ) {
 			printf("  . Start Encryption to Server... Failed\n  . enc_to_server() return %d", ret );
 			goto exit;
 		}
-		printf("  OK!\n");
+		print_progress( (char *)"  . Start Encryption to Server... OK!\n");
 		/*
 		 * Write encrypted AES Key to output file.
 		 */
