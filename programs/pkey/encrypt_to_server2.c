@@ -470,6 +470,7 @@ int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 	for( int i = 0; i < 32; i++ )
 		out_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
 
+	print_buffer( (char *)"Encrypted AES Key: ", out_aes_key, 32);
 	// ret = compute_shared_aes_key( &enc_ctx.z, shared_aes_key );
 
 	// ret = _enc_to_server( &enc_ctx, &in_aes_key, &output_buff );
@@ -479,19 +480,169 @@ cleanup:
 
 }
 
+int dec_aes_at_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
+                  mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
+	server_enc_context_t dec_ctx;
 
+	int curve = MBEDTLS_ECP_DP_SECP256R1;
+	int ret = 1;
 
+	/*
+	 * Initialize required contexts.
+	 */
+	server_enc_context_init( &dec_ctx );
+
+	/*
+	 * Load the group information.
+	 */
+	print_progress(  (char *)"  . Load the group information for the ECC..." );
+	ret = mbedtls_ecp_group_load( &dec_ctx.grp, curve );
+	if( ret != 0 ) {
+		printf( " failed!\n\n\t . mbedtls_ecp_group_load() returned %d\n", ret ), fflush(stdout);
+		goto cleanup_dec;
+	}
+	print_progress(  (char *)"  . OK!\n");
+
+#ifndef DDEBUG
+	printf("===========================================================================\n");
+	print_ecp_group(dec_ctx.grp);
+#endif
+
+#ifdef USE_PERSISTED_SERVER_KEY_MATERIAL
+	/*
+	 * Read client's key material from persisted file;
+	 */
+	print_progress(  (char *)"  . Read Server's key material from persisted file..." );
+	ret = read_ec_keypair( &dec_ctx.d, &dec_ctx.Q, (char *)"srv_d.bin", (char *)"srv_QX.bin", (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
+	if( ret != 0 ) {
+		goto cleanup_dec;
+	}
+	print_progress(  (char *)"  . OK!\n");
+#else // USE_PERSISTED_SERVER_KEY_MATERIAL
+	/*
+	 * Generate Server's public key pair;
+	 */
+	print_progress(  (char *)"  . Generating public key pair for Server..." );
+	ret = generate_ec_keypair( &dec_ctx, ctr_drbg_ctx );
+	if( ret != 0 ) {
+		goto cleanup_dec;
+	}
+	print_progress(  (char *)"  . OK!\n");
+
+#ifdef PERSIST_SERVER_KEY_MATERIAL
+	write_ec_keypair(&dec_ctx.d, &dec_ctx.Q,
+	                   (char*)"srv_d.bin", (char*)"srv_QX.bin",
+	                   (char*)"srv_QY.bin", (char*)"srv_QZ.bin");
+#endif // PERSIST_CLIENT_KEY_MATERIAL
+
+#endif // USE_PERSISTED_CLIENT_KEY_MATERIAL
+
+#ifndef DDEBUG
+	printf("===========================================================================\n");
+	mbedtls_mpi_write_file("dec_ctx.d: ", &dec_ctx.d, 16, NULL);
+	mbedtls_printf("dec_ctx.Q:\n");
+	print_ecp_point(dec_ctx.Q);
+#endif
+	/*
+	 * Load the Client's public key
+	 */
+	print_progress(  (char *)"  . Load the Client's public key into context..." );
+	ret = read_ec_keypair( NULL, &dec_ctx.Qp, NULL, (char *)"cli_QX.bin", (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
+	if( ret != 0 ) {
+		goto cleanup_dec;
+	}
+	print_progress(  (char *)"  . OK!\n");
+
+#ifndef DDEBUG
+	printf("===========================================================================\n");
+	printf("dec_ctx.Qp:\n");
+	print_ecp_point(dec_ctx.Qp);
+#endif
+
+	print_progress(  (char *)"  . Compute the shared secret..." );
+	ret = compute_shared_key( &dec_ctx, ctr_drbg_ctx );
+	if( ret != 0 ) {
+		printf( " failed\n  ! compute_shared_key() returned %d\n", ret ), fflush(stdout);
+		goto cleanup_dec;
+	}
+	print_progress(  (char *)"  . OK!\n");
+
+#ifndef DDEBUG
+	printf("===========================================================================\n");
+	mbedtls_mpi_write_file("dec_ctx.z: ", &dec_ctx.z, 16, NULL);
+	printf("Length of dec_ctx.z in bits: %zu\n", mbedtls_mpi_bitlen(&dec_ctx.z));
+#endif
+
+	unsigned char *shared_aes_key = (unsigned char*) calloc(32,1);
+
+	ret = mbedtls_mpi_write_binary( &dec_ctx.z, shared_aes_key, 32 );
+	if( ret != 0 ) {
+		printf( " Failed\n  ! mbedtls_mpi_write_binary returned %d\n", ret );
+		goto cleanup_dec;
+	}
+	print_buffer( (char*)"Shared AES Key in buffer: ", shared_aes_key, 32);
+
+#ifndef DDEBUG
+	print_buffer( (char *)"  . Shared AES Key before HKDF : ", shared_aes_key, 32 );
+#endif
+	/*
+	 * Use HKDF to increase the entropy of random AES Key material.
+	 */
+	print_progress( (char *)"  . Use HKDF over shared AES key to add more entropy..." );
+	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, shared_aes_key, 32, shared_aes_key );
+	if( ret != 0 ) {
+		printf("  . mbedtls_hkdf_extract() failed, ret = %d\n", ret ), fflush(stdout);
+		free( shared_aes_key );
+		goto cleanup_dec;
+	}
+	printf("  OK!\n");
+
+#ifndef DDEBUG
+	print_buffer( (char *)"  . Shared AES Key after HKDF :  ", shared_aes_key, 32 );
+#endif
+
+#ifndef DISABLE_VERIFICATION
+	print_progress( (char *)"  . Print the length of final shared AES Key.\n");
+	ret = mbedtls_mpi_read_binary( &dec_ctx.z, shared_aes_key, 32 );
+	if( ret != 0 ) {
+		printf( " Failed\n  ! mbedtls_mpi_read_binary returned %d\n", ret );
+		goto cleanup_dec;
 	}
 
+	mbedtls_mpi_write_file("shared_aes_key: ", &dec_ctx.z, 16, NULL);
+	printf("Length of shared_aes_key in bits: %zu\n", mbedtls_mpi_bitlen(&dec_ctx.z));
+	printf("===========================================================================\n");
+#endif
+
+	print_progress( (char *)"  . Decrypt the Ephemeral AES key with shared AES Key.  OK!\n");
+	for( int i = 0; i < 32; i++ )
+		out_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
+
+	print_buffer( (char *)"Decrypted AES Key: ", out_aes_key, 32);
+cleanup_dec:
+	server_enc_context_free( &dec_ctx );
+	return ret;
+
+}
+
+#ifdef USE_PERSISTED_AES_KEY_MATERIAL
+int read_aes_key_material( aes_key_t *aes_key ) {
+
+	int ret = 1;
+
+	CHECK_AND_RET( read_fbuffer( (char *)"aes_iv.bin", NULL, aes_key->IV, 12));
+
+	int keylen = read_fbuffer( (char *)"aes_key.bin", NULL, aes_key->key, 32);
+
+	if( keylen == 0 ) {
+		aes_key->keylen_bits = 256;
 	}
-
-
-	}
-
-
-
-	}
-
+	else if( keylen == 16 && keylen == 24 && keylen == 32) {
+		aes_key->keylen_bits = keylen * 8;
+  	} else {
+		printf("  . fread of AES Key failed\n");
+		return -1;
+  	}
 
 	return 0;
 }
@@ -877,8 +1028,28 @@ int main( int argc, char *argv[] ) {
 		/*
 		 * Decrypt the payload data using AES GCM
 		 */
+		print_progress( (char *)"  . Read encrypted AES Key from file... ");
+		ret = read_fbuffer( NULL, fin, &encrypted_aes_key[0], 32);
+		if( ret != 0) {
+			printf("  . failed to read 32 bytes\n");
+			goto exit;
+		}
+		printf("  OK!\n");
+
+#ifdef DEBUG
+		print_buffer( (char *)"  . Encrypted AES Key: ", &encrypted_aes_key[0], 32);
+#endif
+
+		print_progress( (char *)"  .Decrypt the AES Key at server... STARTED!\n");
+		ret = dec_aes_at_server( &encrypted_aes_key[0], aes_key.key, &ctr_drbg_ctx, &sha_ctx );
+		if( ret != 0 ) {
+			printf("  . Encrypt AES key to Server... Failed\n  . enc_key_to_server() return %d", ret );
+			goto exit;
+		}
+		print_progress( (char *)"  . Decrypt AES key to Server... OK!\n");
+
 		print_progress( (char *)"  . Decrypt the payload using AES GCM... STARTED!\n");
-		ret = do_aes_gcm_decrypt ( &gcm_ctx, &aes_key, fin, fout, filesize);
+		ret = do_aes_gcm_decrypt ( &gcm_ctx, &aes_key, fin, fout, filesize - 32);
 		if( ret != 0 ) {
 			printf("  . Failed!\n\n\t . Decrypt the payload using AES GCM... FAILED!\n  . do_aes_gcm_decrypt() returned %d", ret), fflush(stdout);
 			goto exit;
