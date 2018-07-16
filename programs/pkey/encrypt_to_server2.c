@@ -266,6 +266,35 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
 	mbedtls_mpi_write_file("enc_ctx.z: ", &enc_ctx.z, 16, NULL);
 	printf("Length of enc_ctx.z in bits: %zu\n", mbedtls_mpi_bitlen(&enc_ctx.z));
 #endif
+
+	unsigned char *shared_aes_key = (unsigned char*) calloc(32,1);
+
+	ret = mbedtls_mpi_write_binary( &enc_ctx.z, shared_aes_key, 32 );
+	if( ret != 0 ) {
+		printf( " Failed\n  ! mbedtls_mpi_write_binary returned %d\n", ret );
+		goto cleanup;
+	}
+	print_buffer( (char*)"Shared AES Key in buffer: ", shared_aes_key, 32);
+
+#ifndef DDEBUG
+	print_buffer( (char *)"  . Shared AES Key before HKDF : ", shared_aes_key, 32 );
+#endif
+	/*
+	 * Use HKDF to increase the entropy of random AES Key material.
+	 */
+	print_progress( (char *)"  . Use HKDF over shared AES key to add more entropy..." );
+	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, shared_aes_key, 32, shared_aes_key );
+	if( ret != 0 ) {
+		printf("  . mbedtls_hkdf_extract() failed, ret = %d\n", ret ), fflush(stdout);
+		free( shared_aes_key );
+		goto cleanup;
+	}
+	printf("  OK!\n");
+
+#ifndef DDEBUG
+	print_buffer( (char *)"  . Shared AES Key after HKDF :  ", shared_aes_key, 32 );
+#endif
+
 	// ret = compute_shared_aes_key( &enc_ctx.z, shared_aes_key );
 
 	// ret = _enc_to_server( &enc_ctx, &in_aes_key, &output_buff );
@@ -695,6 +724,15 @@ int main( int argc, char *argv[] ) {
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
 	if( mode == MODE_ENCRYPT ) {
+#if 1
+		print_progress( (char *)"  . Start Encryption to Server... STARTED!\n");
+		ret = enc_to_server( aes_key.key, fout, &ctr_drbg_ctx, &sha_ctx );
+		if( ret != 0 ) {
+			printf("  . Start Encryption to Server... Failed\n  . enc_to_server() return %d", ret );
+			goto exit;
+		}
+		printf("  OK!\n");
+#endif
 		/*
 		 * Encrypt the payload data using AES GCM
 		 */
@@ -719,17 +757,8 @@ int main( int argc, char *argv[] ) {
 		}
 		print_progress( (char *)"  . Decrypt the payload using AES GCM... OK!\n");
 	}
-#if 0
-	unsigned char *output_buff = NULL;
 
-	print_progress( (char *)"  . Start Encryption to Server... STARTED!\n");
-	ret = enc_to_server(aes_key.key, output_buff, &ctr_drbg_ctx);
-	if( ret != 0 ) {
-		printf("  . Start Encryption to Server... Failed\n  . enc_to_server() return %d", ret );
-	}
-#endif
 exit:
-
 	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
 	mbedtls_entropy_free( &entropy_ctx );
 	mbedtls_gcm_free( &gcm_ctx );
