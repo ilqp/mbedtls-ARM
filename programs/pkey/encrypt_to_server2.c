@@ -35,7 +35,12 @@
 #define PERSIST_CLIENT_KEY_MATERIAL
 #define USE_PERSISTED_CLIENT_KEY_MATERIAL
 
+#define DEBUG
+#define TRACK_PROGRESS
 
+/*
+ * Custom data types used
+ */
 typedef struct
 {
 	mbedtls_ecp_group grp;   /*!< The elliptic curve used. */
@@ -51,6 +56,10 @@ typedef struct {
 	unsigned char *IV;
 	size_t keylen_bits;
 } aes_key_t;
+
+/*
+ * Utility functions
+ */
 
 static void print_ecp_group_id_name(mbedtls_ecp_group_id id) {
     switch(id) {
@@ -341,7 +350,7 @@ int enc_to_server(unsigned char *in_aes_key, FILE *fout,
 		goto cleanup;
 	}
 	print_progress(  (char *)"  . OK!\n");
-#else
+#else // USE_PERSISTED_CLIENT_KEY_MATERIAL
 	/*
 	 * Generate client's public key pair;
 	 */
@@ -432,9 +441,10 @@ int enc_to_server(unsigned char *in_aes_key, FILE *fout,
 		printf( " Failed\n  ! mbedtls_mpi_read_binary returned %d\n", ret );
 		goto cleanup;
 	}
-	printf("===========================================================================\n");
+
 	mbedtls_mpi_write_file("shared_aes_key: ", &enc_ctx.z, 16, NULL);
 	printf("Length of shared_aes_key in bits: %zu\n", mbedtls_mpi_bitlen(&enc_ctx.z));
+	printf("===========================================================================\n");
 #endif
 
 	print_progress( (char *)"  . Encrypt the Ephemeral AES key with shared AES Key.  OK!\n");
@@ -655,7 +665,7 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 		}
 
 		if( fwrite( buffer, 1, n, fout ) != (size_t) n ) {
-			fprintf( stderr, "  . fwrite(%d bytes) failed\n", 16 );
+			printf( "  . fwrite(%lld bytes) failed\n", n );
 			return -1;
 		}
 	}
@@ -670,6 +680,7 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 		printf( "  . failed!\n\n\t . mbedtls_gcm_finish() returned %d", ret), fflush(stdout);
 		return ret;
 	}
+	printf("  OK!\n");
 
 	if( fwrite( buffer, 1, 16, fout ) != 16 ) {
 		mbedtls_fprintf( stderr, "fwrite(%d bytes) failed\n", 16 );
@@ -765,6 +776,7 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 		printf( "   . Failed!\n\n\t . mbedtls_gcm_finish() returned %d", ret), fflush(stdout);
 		return ret;
 	}
+	printf("  OK!\n");
 
 	/* Use constant-time buffer comparison */
 	unsigned char diff = 0;
@@ -790,10 +802,12 @@ int main( int argc, char *argv[] ) {
 	mbedtls_md_context_t sha_ctx;
 	mbedtls_gcm_context gcm_ctx;
 
+	print_progress( (char *)"Initialize entropy, ctr_drbg, sha and gcm contexts...");
 	mbedtls_entropy_init( &entropy_ctx );
 	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
 	mbedtls_md_init( &sha_ctx );
 	mbedtls_gcm_init( &gcm_ctx );
+	printf("  OK!\n");
 
 	off_t filesize;
 
@@ -805,25 +819,24 @@ int main( int argc, char *argv[] ) {
 	int mode = atoi( argv[1] );
 
 	print_progress( (char *)"  . Do file related pre-processing..." );
-
 	FILE *fin= NULL, *fout = NULL;
 	if( ( fin = fopen( argv[2], "rb" ) ) == NULL ) {
-		printf("  . fopen(%s,rb) failed\n", argv[2] );
+		printf("  . Failed!\n\n\t . fopen(%s,rb) failed\n", argv[2] );
 		goto exit;
 	}
 
 	if( ( fout = fopen( argv[3], "wb+" ) ) == NULL ) {
-		printf("  . fopen(%s,wb+) failed\n", argv[3] );
+		printf("  . Failed!\n\n\t . fopen(%s,wb+) failed\n", argv[3] );
 		goto exit;
 	}
 
 	if( ( filesize = lseek( fileno( fin ), 0, SEEK_END ) ) < 0 ) {
-		printf("  . lseek(fin, 0, SEEK_END) failed...\n");
+		printf("  . Failed!\n\n\t . lseek(fin, 0, SEEK_END) failed...\n");
 		goto exit;
 	}
 
 	if( fseek( fin, 0, SEEK_SET ) < 0 ) {
-		printf("  . lseek(fin, 0, SEEK_SET) failed...\n");
+		printf("  . Failed!\n\n\t . lseek(fin, 0, SEEK_SET) failed...\n");
 		goto exit;
 	}
 	printf("  OK!\n");
@@ -835,7 +848,7 @@ int main( int argc, char *argv[] ) {
 	ret = mbedtls_ctr_drbg_seed( &ctr_drbg_ctx, mbedtls_entropy_func, &entropy_ctx, NULL, 0);
 	                             // (const unsigned char *) "RANDOM_GEN", 10 );
 	if( ret != 0 ) {
-		printf( "  . failed!\n\n\t . mbedtls_ctr_drbg_seed() returned %d", ret), fflush(stdout);
+		printf( "  . Failed!\n\n\t . mbedtls_ctr_drbg_seed() returned %d", ret), fflush(stdout);
 		goto exit;
 	}
 
@@ -848,7 +861,7 @@ int main( int argc, char *argv[] ) {
 	print_progress( (char *)"  . Setup SHA-256 MD for HKDF...");
 	ret = mbedtls_md_setup( &sha_ctx, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 1 );
 	if( ret != 0 ) {
-		printf( "  ! mbedtls_md_setup() returned -0x%04x\n", -ret );
+		printf( "  . Failed!\n\n\t . mbedtls_md_setup() returned -0x%04x\n", -ret );
 		return ret;
 	}
 	printf("  OK!\n");
@@ -857,12 +870,12 @@ int main( int argc, char *argv[] ) {
 	 * Initialize the AES Key and IV.
 	 */
 #ifdef USE_PERSISTED_AES_KEY_MATERIAL
-	print_progress( (char *)"  . Read previously persisted ephemeral AES Key and IV... STARTED!\n" );
+	print_progress( (char *)"  . Read previously persisted ephemeral AES Key and IV... " );
 	ret = read_aes_key_material( &aes_key );
 	if( ret != 0 ) {
 		goto exit;
 	}
-	print_progress( (char *)"  . Read previously persisted ephemeral AES Key and IV... OK!\n" );
+	printf("  OK!\n");
 #else // USE_PERSISTED_AES_KEY_MATERIAL
 	print_progress( (char *)"  . Generate ephemeral AES Key and IV... STARTED!\n" );
 	ret = aes_key_init( &aes_key, 256, &ctr_drbg_ctx, &sha_ctx );
@@ -912,9 +925,12 @@ int main( int argc, char *argv[] ) {
 	}
 
 exit:
+	print_progress( (char *)"Free entropy, ctr_drbg, sha, gcm and aes_key contexts...");
 	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
 	mbedtls_entropy_free( &entropy_ctx );
 	mbedtls_gcm_free( &gcm_ctx );
 	aes_free( &aes_key );
+	printf("  OK!\n");
+
 	return ret;
 }
