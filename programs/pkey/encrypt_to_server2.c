@@ -285,11 +285,11 @@ void server_enc_context_free(server_enc_context_t *enc_ctx) {
 	mbedtls_mpi_free( &enc_ctx->z  );
 }
 
-int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
-                  mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
+int enc_to_server(unsigned char *in_aes_key, FILE *fout,
+                  mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
 
 	((void) in_aes_key);
-	((void) output_buff);
+	((void) fout);
 
 	server_enc_context_t enc_ctx;
 
@@ -345,8 +345,6 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
 	mbedtls_printf("enc_ctx.Q:\n");
 	print_ecp_point(enc_ctx.Q);
 #endif
-
-	// ret = read_client_keypair(&enc_ctx.d, &enc_ctx.Q);
 
 	/*
 	 * Load the servers public key
@@ -425,6 +423,14 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
 	// ret = compute_shared_aes_key( &enc_ctx.z, shared_aes_key );
 
 	// ret = _enc_to_server( &enc_ctx, &in_aes_key, &output_buff );
+
+	/*
+	 * Write encrypted AES Key to output file.
+	 */
+	if( fwrite( shared_aes_key, 1, 32, fout ) != 32 ) {
+		fprintf( stderr, "fwrite(%d bytes) of Encrypted AES key failed\n", 32 );
+		return -1;
+	}
 
 cleanup:
 	server_enc_context_free( &enc_ctx );
