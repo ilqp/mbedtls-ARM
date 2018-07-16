@@ -103,9 +103,69 @@ void print_progress(char *msg) {
 	printf("%s", msg), fflush( stdout );
 }
 
-int generate_client_keypair( server_enc_context_t *enc_ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
+static int persist_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q,
+                              char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname) {
+	print_progress( (char *)"  . Write Client Key material to persistent storage..." );
+
 	int ret = 1;
-	ret = mbedtls_ecdh_gen_public( &enc_ctx->grp, &enc_ctx->d, &enc_ctx->Q,
+	FILE *f = NULL; //, *f_cli_QX = NULL, *f_cli_QY = NULL, *f_cli_QZ;
+
+	if( ( f = fopen( d_fname, "wb" ) ) == NULL ) {
+		printf("  . fopen(%s,rb) failed\n", d_fname);
+		return -1;
+	}
+
+	ret = mbedtls_mpi_write_file( NULL, d, 16, f );
+	fclose( f );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
+		return ret;
+	}
+
+	if( ( f = fopen( QX_fname, "wb" ) ) == NULL ) {
+		printf("  . fopen(%s,wb+) failed\n", QX_fname);
+		return -1;
+	}
+
+	ret = mbedtls_mpi_write_file( NULL, &Q->X, 16, f );
+	fclose( f );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
+		return ret;
+	}
+
+	if( ( f = fopen( QY_fname, "wb" ) ) == NULL ) {
+		printf("  . fopen(%s,wb+) failed\n", QY_fname);
+		return -1;
+	}
+
+	ret = mbedtls_mpi_write_file( NULL, &Q->Y, 16, f );
+	fclose( f );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
+		return ret;
+	}
+
+	if( ( f = fopen( QZ_fname, "wb" ) ) == NULL ) {
+		printf("  . fopen(%s,wb+) failed\n", QZ_fname);
+		return -1;
+	}
+
+	ret = mbedtls_mpi_write_file( NULL, &Q->Z, 16, f );
+	fclose( f );
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
+		return ret;
+	}
+
+	printf(" OK!\n");
+
+	return ret;
+}
+
+int generate_ec_keypair( server_enc_context_t *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
+	int ret = 1;
+	ret = mbedtls_ecdh_gen_public( &ctx->grp, &ctx->d, &ctx->Q,
 				       mbedtls_ctr_drbg_random, ctr_drbg_ctx );
 	if( ret != 0 ) {
 		printf( " failed!\n\n\t . mbedtls_ecdh_gen_public() returned %d\n", ret ), fflush(stdout);
@@ -114,57 +174,10 @@ int generate_client_keypair( server_enc_context_t *enc_ctx, mbedtls_ctr_drbg_con
 	/*
 	 * SECP256R1 curves Z coordinates are set to 1.
 	 */
-	ret = mbedtls_mpi_lset( &enc_ctx->Q.Z, 1 );
+	ret = mbedtls_mpi_lset( &ctx->Q.Z, 1 );
 	if( ret != 0 ) {
 		printf( " failed\n  ! mbedtls_mpi_lset returned %d\n", ret ), fflush(stdout);
 	}
-
-#ifdef PERSIST_CLIENT_KEY_MATERIAL
-	print_progress( (char *)"  . Write Client Key material to persistent storage..." );
-	FILE *f_cli_d = NULL, *f_cli_QX = NULL, *f_cli_QY = NULL;
-
-	if( ( f_cli_d = fopen( "cli_d.bin", "wb" ) ) == NULL ) {
-		printf("  . fopen(cli_d.bin,rb) failed\n");
-		return -1;
-	}
-
-	if( ( f_cli_QX = fopen( "cli_QX.bin", "wb" ) ) == NULL ) {
-		printf("  . fopen(cli_QX.bin,wb+) failed\n");
-		fclose( f_cli_d );
-		return -1;
-	}
-
-	if( ( f_cli_QY = fopen( "cli_QY.bin", "wb" ) ) == NULL ) {
-		printf("  . fopen(cli_QY.bin,wb+) failed\n");
-		fclose( f_cli_d ), fclose( f_cli_QX );
-		return -1;
-	}
-
-	ret = mbedtls_mpi_write_file( NULL, &enc_ctx->d, 16, f_cli_d );
-	fclose( f_cli_d );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
-		fclose( f_cli_QX ), fclose( f_cli_QY );
-		return ret;
-	}
-
-	ret = mbedtls_mpi_write_file( NULL, &enc_ctx->Q.X, 16, f_cli_QX );
-	fclose( f_cli_QX );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
-		fclose( f_cli_QY );
-		return ret;
-	}
-
-	ret = mbedtls_mpi_write_file( NULL, &enc_ctx->Q.Y, 16, f_cli_QY );
-	fclose( f_cli_QY );
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_write_file() returned %d\n", ret ), fflush(stdout);
-		return ret;
-	}
-
-	printf(" OK!\n");
-#endif
 
 	return ret;
 }
@@ -216,6 +229,7 @@ int read_client_keypair( server_enc_context_t *enc_ctx ) {
 
 	return 0;
 }
+
 int read_server_key_material( mbedtls_ecp_point *Qp) {
 
 	FILE *f_srv_QX = NULL;
@@ -266,8 +280,8 @@ int read_server_key_material( mbedtls_ecp_point *Qp) {
 	return ret;
 }
 
-int compute_shared_key( server_enc_context_t *enc_ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
-	return mbedtls_ecdh_compute_shared( &enc_ctx->grp, &enc_ctx->z, &enc_ctx->Qp, &enc_ctx->d,
+int compute_shared_key( server_enc_context_t *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
+	return mbedtls_ecdh_compute_shared( &ctx->grp, &ctx->z, &ctx->Qp, &ctx->d,
 					   mbedtls_ctr_drbg_random, ctr_drbg_ctx );
 }
 
@@ -332,12 +346,19 @@ int enc_to_server(unsigned char *in_aes_key, FILE *fout,
 	 * Generate client's public key pair;
 	 */
 	print_progress(  (char *)"  . Generating public key pair for client..." );
-	ret = generate_client_keypair( &enc_ctx, ctr_drbg_ctx );
+	ret = generate_ec_keypair( &enc_ctx, ctr_drbg_ctx );
 	if( ret != 0 ) {
 		goto cleanup;
 	}
 	print_progress(  (char *)"  . OK!\n");
-#endif
+
+#ifdef PERSIST_CLIENT_KEY_MATERIAL
+	persist_ec_keypair(&enc_ctx.d, &enc_ctx.Q,
+	                   (char*)"cli_d.bin", (char*)"cli_QX.bin",
+	                   (char*)"cli_QY.bin", (char*)"cli_QZ.bin");
+#endif // PERSIST_CLIENT_KEY_MATERIAL
+
+#endif // USE_PERSISTED_CLIENT_KEY_MATERIAL
 
 #ifndef DDEBUG
 	printf("===========================================================================\n");
@@ -350,7 +371,7 @@ int enc_to_server(unsigned char *in_aes_key, FILE *fout,
 	 * Load the servers public key
 	 */
 	print_progress(  (char *)"  . Load the servers public key into context..." );
-	ret = read_server_pkey( &enc_ctx.Qp);
+	ret = read_server_key_material( &enc_ctx.Qp);
 	if( ret != 0 ) {
 		goto cleanup;
 	}
@@ -440,7 +461,7 @@ cleanup:
 
 #ifdef USE_PERSISTED_AES_KEY_MATERIAL
 int read_aes_key_material( aes_key_t *aes_key ) {
-	print_progress( (char *)"  . Read AES Key material from persistent storage..." );
+
 	FILE *f_aes_key = NULL, *f_aes_iv = NULL;
 
 	if( ( f_aes_key = fopen( "aes_key.bin", "rb" ) ) == NULL ) {
@@ -479,14 +500,9 @@ int read_aes_key_material( aes_key_t *aes_key ) {
 		free( aes_key->key ), free( aes_key->IV );
 		return -1;
 	}
-	printf(" OK!\n");
 
 	aes_key->keylen_bits = keylen * 8;
 
-#ifndef DDEBUG
-	print_buffer( (char *)"  . AES Key: ", aes_key->key, aes_key->keylen_bits/8 );
-	print_buffer( (char *)"  . AES IV : ", aes_key->IV, 12 );
-#endif
 	return 0;
 }
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
@@ -856,6 +872,10 @@ int main( int argc, char *argv[] ) {
 	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
+#ifndef DDEBUG
+	print_buffer( (char *)"  . AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
+	print_buffer( (char *)"  . AES IV : ", aes_key.IV, 12 );
+#endif
 	if( mode == MODE_ENCRYPT ) {
 #if 1
 		print_progress( (char *)"  . Start Encryption to Server... STARTED!\n");
