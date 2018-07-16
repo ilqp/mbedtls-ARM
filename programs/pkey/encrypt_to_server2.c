@@ -236,6 +236,31 @@ int write_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q, char *d_fname, char 
 
 	return 0;
 }
+
+int read_fbuffer( char *fname, FILE *fp, unsigned char *ptr, size_t len) {
+	FILE *f = fp;
+
+	int close_file = 1;
+	if ( f )
+		close_file = 0;
+
+	if( !f && (f = fopen(fname, "rb")) == NULL ){
+		printf(" . fopen(%s, rb) failed\n", fname);
+		return -1;
+	}
+
+	size_t ret = fread( ptr, 1, len, f );
+	if( close_file )
+		fclose( f );
+
+	if( ret != len ) {
+		printf("  . fread(%s) read %zd instead of %zd from failed\n", fname, ret, len);
+		return ret;
+	}
+
+	return 0;
+}
+
 int read_server_key_material( mbedtls_ecp_point *Qp) {
 
 	FILE *f_srv_QX = NULL;
