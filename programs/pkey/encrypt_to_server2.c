@@ -306,6 +306,11 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
 	mbedtls_mpi_write_file("shared_aes_key: ", &enc_ctx.z, 16, NULL);
 	printf("Length of shared_aes_key in bits: %zu\n", mbedtls_mpi_bitlen(&enc_ctx.z));
 #endif
+
+	print_progress( (char *)"  . Encrypt the Ephemeral AES key with shared AES Key.  OK!\n");
+	for( int i = 0; i < 32; i++ )
+		in_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
+
 	// ret = compute_shared_aes_key( &enc_ctx.z, shared_aes_key );
 
 	// ret = _enc_to_server( &enc_ctx, &in_aes_key, &output_buff );
