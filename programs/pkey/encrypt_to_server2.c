@@ -295,6 +295,17 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
 	print_buffer( (char *)"  . Shared AES Key after HKDF :  ", shared_aes_key, 32 );
 #endif
 
+#ifndef DISABLE_VERIFICATION
+	print_progress( (char *)"  . Print the length of final shared AES Key.\n");
+	ret = mbedtls_mpi_read_binary( &enc_ctx.z, shared_aes_key, 32 );
+	if( ret != 0 ) {
+		printf( " Failed\n  ! mbedtls_mpi_read_binary returned %d\n", ret );
+		goto cleanup;
+	}
+	printf("===========================================================================\n");
+	mbedtls_mpi_write_file("shared_aes_key: ", &enc_ctx.z, 16, NULL);
+	printf("Length of shared_aes_key in bits: %zu\n", mbedtls_mpi_bitlen(&enc_ctx.z));
+#endif
 	// ret = compute_shared_aes_key( &enc_ctx.z, shared_aes_key );
 
 	// ret = _enc_to_server( &enc_ctx, &in_aes_key, &output_buff );
