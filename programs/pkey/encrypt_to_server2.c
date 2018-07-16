@@ -19,6 +19,8 @@
 #include "mbedtls/md.h"
 #include "mbedtls/hkdf.h"
 
+#define PERSIST_AES_KEY_MATERIAL
+#define USE_PERSISTED_AES_KEY_MATERIAL
 typedef struct
 {
 	mbedtls_ecp_group grp;   /*!< The elliptic curve used. */
@@ -264,6 +266,59 @@ cleanup:
 
 }
 
+#ifdef USE_PERSISTED_AES_KEY_MATERIAL
+int read_aes_key_material( aes_key_t *aes_key ) {
+	print_progress( (char *)"  . Read AES Key material from persistent storage..." );
+	FILE *f_aes_key = NULL, *f_aes_iv = NULL;
+
+	if( ( f_aes_key = fopen( "aes_key.bin", "rb" ) ) == NULL ) {
+		printf( "  . fopen(aes_key.bin,rb) failed\n" );
+		return -1;
+	}
+
+	if( ( f_aes_iv = fopen( "aes_iv.bin", "rb+" ) ) == NULL ) {
+		printf( "  . fopen(aes_iv.bin,wb+) failed\n" );
+		fclose( f_aes_key );
+		return -1;
+	}
+
+	if(aes_key->IV)
+		free( aes_key->IV );
+	aes_key->IV = (unsigned char *) malloc(12);
+
+	if( fread( aes_key->IV, 1, 12, f_aes_iv ) != 12 ) {
+		printf("  . fread of AES IV failed\n");
+		fclose( f_aes_key ), fclose( f_aes_iv );
+		free( aes_key->IV );
+		return -1;
+	}
+	fclose( f_aes_iv );
+
+	if( aes_key->key )
+		free( aes_key->key );
+
+	int keylen = 0;
+	aes_key->key = (unsigned char *) malloc( 32 );
+	keylen = fread( aes_key->key, 1, 32, f_aes_key );
+
+	if( keylen != 16 && keylen != 24 && keylen != 32 ) {
+		printf("  . fread of AES Key failed\n");
+		fclose(f_aes_key);
+		free( aes_key->key ), free( aes_key->IV );
+		return -1;
+	}
+	printf(" OK!\n");
+
+	aes_key->keylen_bits = keylen * 8;
+
+#ifndef DDEBUG
+	print_buffer( (char *)"  . AES Key: ", aes_key->key, aes_key->keylen_bits/8 );
+	print_buffer( (char *)"  . AES IV : ", aes_key->IV, 12 );
+#endif
+	return 0;
+}
+#endif // USE_PERSISTED_AES_KEY_MATERIAL
+
 int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context *ctr_drbg_ctx,
                  mbedtls_md_context_t *sha_ctx) {
 	size_t keylen;
@@ -328,6 +383,40 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	print_buffer( (char *)"  . AES IV : ", aes_key->IV, 12 );
 #endif
 
+#ifdef PERSIST_AES_KEY_MATERIAL
+	print_progress( (char *)"  . Write AES Key material to persistent storage..." );
+	FILE *f_aes_key = NULL, *f_aes_iv = NULL;
+
+	if( ( f_aes_key = fopen( "aes_key.bin", "wb" ) ) == NULL ) {
+		printf("  . fopen(aes_key.bin,rb) failed\n");
+		return -1;
+	}
+
+	if( ( f_aes_iv = fopen( "aes_iv.bin", "wb" ) ) == NULL ) {
+		printf("  . fopen(aes_iv.bin,wb+) failed\n");
+		fclose(f_aes_key);
+		return -1;
+	}
+
+	if( fwrite( aes_key->IV, 1, 12, f_aes_iv ) != 12 ) {
+		printf("  . fwrite of AES IV failed\n");
+		fclose(f_aes_key), fclose(f_aes_iv);
+		free(aes_key->IV);
+		return -1;
+	}
+	fclose(f_aes_iv);
+
+	if( fwrite( aes_key->key, 1, aes_key->keylen_bits / 8, f_aes_key ) != aes_key->keylen_bits / 8) {
+		printf("  . fwrite of AES Key failed\n");
+		fclose(f_aes_key);
+		free( aes_key->key ), free( aes_key->IV );
+		return -1;
+	}
+	printf(" OK!\n");
+
+	aes_key->keylen_bits = keylen * 8;
+#endif // PERSIST_AES_KEY_MATERIAL
+
 	return ret;
 }
 
@@ -376,12 +465,23 @@ int main() {
 	/*
 	 * Initialize the AES Key and IV.
 	 */
+#ifdef USE_PERSISTED_AES_KEY_MATERIAL
+	print_progress( (char *)"  . Read previously persisted ephemeral AES Key and IV... STARTED!\n" );
+	ret = read_aes_key_material( &aes_key );
+	if( ret != 0 ) {
+		goto exit;
+	}
+	print_progress( (char *)"  . Read previously persisted ephemeral AES Key and IV... OK!\n" );
+#else // USE_PERSISTED_AES_KEY_MATERIAL
 	print_progress( (char *)"  . Generate ephemeral AES Key and IV... STARTED!\n" );
 	ret = aes_key_init( &aes_key, 256, &ctr_drbg_ctx, &sha_ctx );
 	if( ret != 0 ) {
 		goto exit;
 	}
 	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
+#endif // USE_PERSISTED_AES_KEY_MATERIAL
+
+	exit(0);
 
 	unsigned char *output_buff = NULL;
 
