@@ -11,6 +11,7 @@
 #define mbedtls_printf     printf
 #endif
 
+#include <unistd.h>
 #include <string.h>
 
 #include "mbedtls/entropy.h"
@@ -18,6 +19,15 @@
 #include "mbedtls/ecdh.h"
 #include "mbedtls/md.h"
 #include "mbedtls/hkdf.h"
+#include "mbedtls/gcm.h"
+
+#define MODE_ENCRYPT    0
+#define MODE_DECRYPT    1
+
+#define USAGE   \
+    "\n  %s <mode> <input filename> <output filename>\n" \
+    "\n   <mode>: 0 = encrypt, 1 = decrypt\n" \
+    "\n"
 
 #define PERSIST_AES_KEY_MATERIAL
 #define USE_PERSISTED_AES_KEY_MATERIAL
@@ -425,17 +435,118 @@ void aes_free( aes_key_t *aes_key ) {
 	if( aes_key->IV ) free(aes_key->IV);
 }
 
-int main() {
+int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *fin, FILE *fout,
+                        off_t filesize )  {
+
+	int ret = 1;
+	/*
+	 * Append the IV at the beginning of the output.
+	 */
+	if( fwrite( aes_key->IV, 1, 12, fout ) != 12 ) {
+		fprintf( stderr, "fwrite(%d bytes) failed\n", 12 );
+		return -1;
+	}
+
+	print_progress( (char *)"  . Set GCM Key... ");
+	ret = mbedtls_gcm_setkey( gcm_ctx, MBEDTLS_CIPHER_ID_AES, aes_key->key, 256);
+	if( ret != 0 ) {
+		printf( "  . failed!\n\n\t . mbedtls_gcm_setkey() returned %d", ret), fflush(stdout);
+		return ret;
+	}
+	printf("  OK!\n");
+
+	/*
+	 * Encrypt and write the ciphertext.
+	 */
+	print_progress( (char *)"  . Start GCM Encryption...");
+	unsigned char buffer[1024];
+	mbedtls_gcm_starts( gcm_ctx, MBEDTLS_GCM_ENCRYPT, aes_key->IV, 12, NULL, 0);
+
+	for( off_t offset = 0; offset < filesize; offset += 16 ) {
+		off_t n = ( filesize - offset > 16 ) ? 16 : (off_t)( filesize - offset );
+
+		if( fread( buffer, 1, n, fin ) != (size_t) n ) {
+			printf("  . fread(%lld bytes) failed\n", n );
+			return -1;
+		}
+
+		ret = mbedtls_gcm_update( gcm_ctx, n, buffer, buffer);
+		if( ret != 0 ) {
+			printf( "  . failed!\n\n\t . mbedtls_gcm_update() returned %d", ret), fflush(stdout);
+			return ret;
+		}
+
+		if( fwrite( buffer, 1, n, fout ) != (size_t) n ) {
+			fprintf( stderr, "  . fwrite(%d bytes) failed\n", 16 );
+			return -1;
+		}
+	}
+	printf("  OK!\n");
+
+	/*
+	 * Finally write the HMAC.
+	 */
+	print_progress( (char *)"  . Finish GCM Encryption...");
+	ret = mbedtls_gcm_finish( gcm_ctx, buffer, 16);
+	if( ret != 0 ) {
+		printf( "  . failed!\n\n\t . mbedtls_gcm_finish() returned %d", ret), fflush(stdout);
+		return ret;
+	}
+
+	if( fwrite( buffer, 1, 16, fout ) != 16 ) {
+		mbedtls_fprintf( stderr, "fwrite(%d bytes) failed\n", 16 );
+		return -1;
+	}
+
+	return 0;
+}
+
+int main( int argc, char *argv[] ) {
 	int ret = 1;
 
 	aes_key_t aes_key;
 	mbedtls_entropy_context entropy_ctx;
 	mbedtls_ctr_drbg_context ctr_drbg_ctx;
 	mbedtls_md_context_t sha_ctx;
+	mbedtls_gcm_context gcm_ctx;
 
 	mbedtls_entropy_init( &entropy_ctx );
 	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
 	mbedtls_md_init( &sha_ctx );
+	mbedtls_gcm_init( &gcm_ctx );
+
+	off_t filesize;
+
+	if( argc < 3) {
+		printf( USAGE, argv[0] );
+		goto exit;
+	}
+
+	int mode = atoi( argv[1] );
+
+	print_progress( (char *)"  . Do file related pre-processing..." );
+
+	FILE *fin= NULL, *fout = NULL;
+	if( ( fin = fopen( argv[2], "rb" ) ) == NULL ) {
+		printf("  . fopen(%s,rb) failed\n", argv[2] );
+		goto exit;
+	}
+
+	if( ( fout = fopen( argv[3], "wb+" ) ) == NULL ) {
+		printf("  . fopen(%s,wb+) failed\n", argv[3] );
+		goto exit;
+	}
+
+	if( ( filesize = lseek( fileno( fin ), 0, SEEK_END ) ) < 0 ) {
+		printf("  . lseek(fin, 0, SEEK_END) failed...\n");
+		goto exit;
+	}
+
+	if( fseek( fin, 0, SEEK_SET ) < 0 ) {
+		printf("  . lseek(fin, 0, SEEK_SET) failed...\n");
+		goto exit;
+	}
+	printf("  OK!\n");
 
 	/*
 	 * Seed the random number generator.
@@ -481,7 +592,17 @@ int main() {
 	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
-	exit(0);
+	/*
+	 * Encrypt the payload data using AES GCM
+	 */
+	print_progress( (char *)"  . Encrypt the payload using AES GCM... STARTED!\n");
+	ret = do_aes_gcm_encrypt ( &gcm_ctx, &aes_key, fin, fout, filesize);
+	if( ret != 0 ) {
+		printf("  . Encrypt the payload using AES GCM... FAILED!\n  . do_aes_gcm_encrypt() returned %d", ret), fflush(stdout);
+		goto exit;
+	}
+	print_progress( (char *)"  . Encrypt the payload using AES GCM... OK!\n");
+
 
 	unsigned char *output_buff = NULL;
 
@@ -493,7 +614,8 @@ int main() {
 exit:
 
 	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
-	mbedtls_entropy_free( &entropy_ctx);
+	mbedtls_entropy_free( &entropy_ctx );
+	mbedtls_gcm_free( &gcm_ctx );
 	aes_free( &aes_key );
 	return ret;
 }
