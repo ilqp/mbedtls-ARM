@@ -33,6 +33,7 @@
 #define USE_PERSISTED_AES_KEY_MATERIAL
 
 #define PERSIST_CLIENT_KEY_MATERIAL
+#define USE_PERSISTED_CLIENT_KEY_MATERIAL
 
 
 typedef struct
@@ -316,6 +317,17 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
 	print_ecp_group(enc_ctx.grp);
 #endif
 
+#ifdef USE_PERSISTED_CLIENT_KEY_MATERIAL
+	/*
+	 * Read client's key material from persisted file;
+	 */
+	print_progress(  (char *)"  . Read client's key material from persisted file..." );
+	ret = read_client_keypair( &enc_ctx );
+	if( ret != 0 ) {
+		goto cleanup;
+	}
+	print_progress(  (char *)"  . OK!\n");
+#else
 	/*
 	 * Generate client's public key pair;
 	 */
@@ -325,6 +337,7 @@ int enc_to_server(unsigned char *in_aes_key, unsigned char *output_buff,
 		goto cleanup;
 	}
 	print_progress(  (char *)"  . OK!\n");
+#endif
 
 #ifndef DDEBUG
 	printf("===========================================================================\n");
