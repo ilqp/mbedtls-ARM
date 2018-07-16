@@ -337,7 +337,7 @@ void server_enc_context_free(server_enc_context_t *enc_ctx) {
 	mbedtls_mpi_free( &enc_ctx->z  );
 }
 
-int enc_to_server(unsigned char *in_aes_key, FILE *fout,
+int enc_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key, FILE *fout,
                   mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
 
 	((void) in_aes_key);
@@ -478,20 +478,11 @@ int enc_to_server(unsigned char *in_aes_key, FILE *fout,
 
 	print_progress( (char *)"  . Encrypt the Ephemeral AES key with shared AES Key.  OK!\n");
 	for( int i = 0; i < 32; i++ )
-		in_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
+		out_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
 
 	// ret = compute_shared_aes_key( &enc_ctx.z, shared_aes_key );
 
 	// ret = _enc_to_server( &enc_ctx, &in_aes_key, &output_buff );
-
-	/*
-	 * Write encrypted AES Key to output file.
-	 */
-	if( fwrite( shared_aes_key, 1, 32, fout ) != 32 ) {
-		fprintf( stderr, "fwrite(%d bytes) of Encrypted AES key failed\n", 32 );
-		return -1;
-	}
-
 cleanup:
 	server_enc_context_free( &enc_ctx );
 	return ret;
@@ -879,7 +870,7 @@ int main( int argc, char *argv[] ) {
 	if( ret != 0 ) {
 		goto exit;
 	}
-
+	printf("  OK!\n");
 	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
 
 #ifdef PERSIST_AES_KEY_MATERIAL
@@ -893,19 +884,25 @@ int main( int argc, char *argv[] ) {
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
 #ifndef DDEBUG
-	print_buffer( (char *)"  . AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
-	print_buffer( (char *)"  . AES IV : ", aes_key.IV, 12 );
+	print_buffer( (char *)"  . Final AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
+	print_buffer( (char *)"  . Final AES IV : ", aes_key.IV, 12 );
 #endif
 	if( mode == MODE_ENCRYPT ) {
-#if 1
+		unsigned char encrypted_aes_key[32];
 		print_progress( (char *)"  . Start Encryption to Server... STARTED!\n");
-		ret = enc_to_server( aes_key.key, fout, &ctr_drbg_ctx, &sha_ctx );
+		ret = enc_to_server( aes_key.key, &encrypted_aes_key[0], fout, &ctr_drbg_ctx, &sha_ctx );
 		if( ret != 0 ) {
 			printf("  . Start Encryption to Server... Failed\n  . enc_to_server() return %d", ret );
 			goto exit;
 		}
 		printf("  OK!\n");
-#endif
+		/*
+		 * Write encrypted AES Key to output file.
+		 */
+		if( fwrite( &encrypted_aes_key[0], 1, 32, fout ) != 32 ) {
+			fprintf( stderr, "fwrite(%d bytes) of Encrypted AES key failed\n", 32 );
+			goto exit;
+		}
 		/*
 		 * Encrypt the payload data using AES GCM
 		 */
