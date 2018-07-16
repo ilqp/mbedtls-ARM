@@ -765,7 +765,7 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 	/*
 	 * Finally process the HMAC.
 	 */
-	if( fread( in_buff, 1, 16, fout ) != 16 ) {
+	if( fread( in_buff, 1, 16, fin ) != 16 ) {
 		printf( "  . Failed!\n\n\t . fread(%d bytes) failed\n", 16 );
 		return -1;
 	}
