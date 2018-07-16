@@ -399,7 +399,7 @@ int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 	 * Load the servers public key
 	 */
 	print_progress(  (char *)"  . Load the servers public key into context..." );
-	ret = read_server_key_material( &enc_ctx.Qp);
+	ret = read_ec_keypair( NULL, &enc_ctx.Qp, NULL, (char *)"srv_QX.bin", (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
 	if( ret != 0 ) {
 		goto cleanup;
 	}
@@ -479,49 +479,19 @@ cleanup:
 
 }
 
-#ifdef USE_PERSISTED_AES_KEY_MATERIAL
-int read_aes_key_material( aes_key_t *aes_key ) {
 
-	FILE *f_aes_key = NULL, *f_aes_iv = NULL;
 
-	if( ( f_aes_key = fopen( "aes_key.bin", "rb" ) ) == NULL ) {
-		printf( "  . fopen(aes_key.bin,rb) failed\n" );
-		return -1;
 	}
 
-	if( ( f_aes_iv = fopen( "aes_iv.bin", "rb+" ) ) == NULL ) {
-		printf( "  . fopen(aes_iv.bin,wb+) failed\n" );
-		fclose( f_aes_key );
-		return -1;
 	}
 
-	if(aes_key->IV)
-		free( aes_key->IV );
-	aes_key->IV = (unsigned char *) malloc(12);
 
-	if( fread( aes_key->IV, 1, 12, f_aes_iv ) != 12 ) {
-		printf("  . fread of AES IV failed\n");
-		fclose( f_aes_key ), fclose( f_aes_iv );
-		free( aes_key->IV );
-		return -1;
-	}
-	fclose( f_aes_iv );
-
-	if( aes_key->key )
-		free( aes_key->key );
-
-	int keylen = 0;
-	aes_key->key = (unsigned char *) malloc( 32 );
-	keylen = fread( aes_key->key, 1, 32, f_aes_key );
-
-	if( keylen != 16 && keylen != 24 && keylen != 32 ) {
-		printf("  . fread of AES Key failed\n");
-		fclose(f_aes_key);
-		free( aes_key->key ), free( aes_key->IV );
-		return -1;
 	}
 
-	aes_key->keylen_bits = keylen * 8;
+
+
+	}
+
 
 	return 0;
 }
