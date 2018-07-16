@@ -330,11 +330,8 @@ void server_enc_context_free(server_enc_context_t *enc_ctx) {
 	mbedtls_mpi_free( &enc_ctx->z  );
 }
 
-int enc_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key, FILE *fout,
+int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
                   mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
-
-	((void) in_aes_key);
-	((void) fout);
 
 	server_enc_context_t enc_ctx;
 
@@ -778,15 +775,16 @@ int main( int argc, char *argv[] ) {
 	mbedtls_gcm_context gcm_ctx;
 
 	print_progress( (char *)"Initialize entropy, ctr_drbg, sha and gcm contexts...");
+	aes_key_init( &aes_key, 32, 12 );
 	mbedtls_entropy_init( &entropy_ctx );
 	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
 	mbedtls_md_init( &sha_ctx );
 	mbedtls_gcm_init( &gcm_ctx );
-
-	aes_key_init( &aes_key, 32, 12 );
 	printf("  OK!\n");
 
 	off_t filesize;
+
+	unsigned char encrypted_aes_key[32];
 
 	if( argc < 3) {
 		printf( USAGE, argv[0] );
@@ -818,6 +816,9 @@ int main( int argc, char *argv[] ) {
 	}
 	printf("  OK!\n");
 
+#ifdef DEBUG
+	printf("  . Input filesize = %lld \n", filesize);
+#endif
 	/*
 	 * Seed the random number generator.
 	 */
@@ -844,8 +845,6 @@ int main( int argc, char *argv[] ) {
 	printf("  OK!\n");
 
 	if( mode == MODE_ENCRYPT ) {
-		unsigned char encrypted_aes_key[32];
-
 		/*
 		 * Initialize the AES Key and IV.
 		 */
@@ -878,13 +877,14 @@ int main( int argc, char *argv[] ) {
 		print_buffer( (char *)"  . Final AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
 		print_buffer( (char *)"  . Final AES IV : ", aes_key.IV, 12 );
 #endif
-		print_progress( (char *)"  . Start Encryption to Server... STARTED!\n");
-		ret = enc_to_server( aes_key.key, &encrypted_aes_key[0], fout, &ctr_drbg_ctx, &sha_ctx );
+
+		print_progress( (char *)"  . Encrypt AES key to Server... STARTED!\n");
+		ret = enc_key_to_server( aes_key.key, &encrypted_aes_key[0], &ctr_drbg_ctx, &sha_ctx );
 		if( ret != 0 ) {
-			printf("  . Start Encryption to Server... Failed\n  . enc_to_server() return %d", ret );
+			printf("  . Encrypt AES key to Server... Failed\n  . enc_key_to_server() return %d", ret );
 			goto exit;
 		}
-		print_progress( (char *)"  . Start Encryption to Server... OK!\n");
+		print_progress( (char *)"  . Encrypt AES key to Server... OK!\n");
 		/*
 		 * Write encrypted AES Key to output file.
 		 */
@@ -903,7 +903,6 @@ int main( int argc, char *argv[] ) {
 		}
 		print_progress( (char *)"  . Encrypt the payload using AES GCM... OK!\n");
 	}
-
 	else if ( mode == MODE_DECRYPT ) {
 		/*
 		 * Decrypt the payload data using AES GCM
