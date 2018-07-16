@@ -38,7 +38,7 @@
 #define DEBUG
 #define TRACK_PROGRESS
 
-#define CHECK_AND_RET( x ) { if ( (ret = x) == 0) return ret; }
+#define CHECK_AND_RET( x ) { if ( (ret = x) != 0) return ret; }
 /*
  * Custom data types used
  */
