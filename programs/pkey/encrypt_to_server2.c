@@ -17,6 +17,7 @@
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ecdh.h"
 #include "mbedtls/md.h"
+#include "mbedtls/hkdf.h"
 
 typedef struct
 {
@@ -280,18 +281,11 @@ cleanup:
 
 }
 
-int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context *ctr_drbg_ctx ) {
+int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context *ctr_drbg_ctx,
+                 mbedtls_md_context_t *sha_ctx) {
 	size_t keylen;
 	int ret = 1;
 
-	mbedtls_md_context_t sha_ctx;
-	mbedtls_md_init( &sha_ctx );
-
-	ret = mbedtls_md_setup( &sha_ctx, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 1 );
-	if( ret != 0 ) {
-		printf( "  ! mbedtls_md_setup() returned -0x%04x\n", -ret );
-		return ret;
-	}
 	if( keylen_bits != 128 || keylen_bits != 192 || keylen_bits != 256 ) {
 		keylen = 32, keylen_bits = 256;
 	} else {
@@ -299,9 +293,6 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	}
 
 	if(aes_key->key) free( aes_key->key );
-	if(aes_key->IV) free( aes_key->IV );
-
-	aes_key->IV = (unsigned char *) malloc(12);
 	aes_key->key = (unsigned char *) malloc(keylen);
 	aes_key->keylen_bits = keylen_bits;
 
@@ -311,26 +302,40 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->key, keylen );
 	if( ret != 0 ) {
 		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
+		free(aes_key->key);
 		return ret;
 	}
-	printf("\n");
+
+	if(aes_key->IV) free( aes_key->IV );
+	aes_key->IV = (unsigned char *) malloc(12);
 
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->IV, 12 );
 	if( ret != 0 ) {
 		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
+		free(aes_key->key), free(aes_key->IV);
+		return ret;
 	}
-	printf("\n");
 
+#ifndef DDEBUG
+	print_buffer( (char *)"  . AES Key before HKDF : ", aes_key->key, aes_key->keylen_bits/8 );
+#endif
 	/*
 	 * Final AES Key = Output of 8192 time SHA-256 hash of IV and the random key together.
 	 */
 
-	for( int i = 0; i < 8192; i++ ) {
-		mbedtls_md_starts( &sha_ctx );
-		mbedtls_md_update( &sha_ctx, aes_key->key, keylen );
-		mbedtls_md_update( &sha_ctx, aes_key->IV, keylen );
-		mbedtls_md_finish( &sha_ctx, aes_key->key );
+	print_progress( (char *)"  . Use HKDF over random AES key to add more entropy...");
+	ret = mbedtls_hkdf_extract(sha_ctx.md_info, NULL, 0, aes_key->key, aes_key->keylen_bits/8, aes_key->key);
+	if( ret != 0 ) {
+		printf("  . mbedtls_hkdf_extract() failed, ret = %d\n", ret ), fflush(stdout);
+		free(aes_key->key), free(aes_key->IV);
+		return ret;
 	}
+	printf("  OK!\n");
+
+#ifndef DDEBUG
+	print_buffer( (char *)"  . AES Key after HKDF :  ", aes_key->key, aes_key->keylen_bits/8 );
+	print_buffer( (char *)"  . AES IV : ", aes_key->IV, 12 );
+#endif
 
 	return ret;
 }
@@ -346,9 +351,11 @@ int main() {
 	aes_key_t aes_key;
 	mbedtls_entropy_context entropy_ctx;
 	mbedtls_ctr_drbg_context ctr_drbg_ctx;
+	mbedtls_md_context_t sha_ctx;
 
 	mbedtls_entropy_init( &entropy_ctx );
 	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
+	mbedtls_md_init( &sha_ctx );
 
 	/*
 	 * Seed the random number generator.
@@ -364,17 +371,20 @@ int main() {
 	mbedtls_ctr_drbg_set_prediction_resistance( &ctr_drbg_ctx, MBEDTLS_CTR_DRBG_PR_OFF );
 	print_progress(  (char *)"  . OK!\n");
 
+	print_progress( (char *)"  . Setup SHA-256 MD...");
+	ret = mbedtls_md_setup( &sha_ctx, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 1 );
+	if( ret != 0 ) {
+		printf( "  ! mbedtls_md_setup() returned -0x%04x\n", -ret );
+		return ret;
+	}
+	printf("  OK!\n");
+
 	print_progress( (char *)"  . Generate ephemeral AES Key and IV..." );
-	ret = aes_key_init( &aes_key, 256, &ctr_drbg_ctx );
+	ret = aes_key_init( &aes_key, 256, &ctr_drbg_ctx, &sha_ctx );
 	if( ret != 0 ) {
 		goto exit;
 	}
 	printf("  OK!\n");
-
-#ifndef DDEBUG
-	print_buffer( (char *)"AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
-	print_buffer( (char *)"AES IV : ", aes_key.IV, 12 );
-#endif
 
 	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
 	mbedtls_entropy_free( &entropy_ctx );
