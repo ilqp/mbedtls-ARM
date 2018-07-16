@@ -172,6 +172,35 @@ static int persist_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q,
 	return ret;
 }
 
+int persist_aes_key_material(aes_key_t *aes_key, char *key_fname, char *iv_fname) {
+	FILE *f = NULL;
+
+	if( ( f = fopen( key_fname, "wb" ) ) == NULL ) {
+		printf("  . fopen(%s,rb) failed\n", key_fname);
+		return -1;
+	}
+	if( fwrite( aes_key->key, 1, aes_key->keylen_bits / 8, f ) != aes_key->keylen_bits / 8) {
+		printf("  . fwrite of AES Key failed\n");
+		fclose(f);
+		return -1;
+	}
+	fclose(f);
+
+	if( ( f = fopen( iv_fname, "wb" ) ) == NULL ) {
+		printf("  . fopen(%s,wb+) failed\n", iv_fname);
+		return -1;
+	}
+
+	if( fwrite( aes_key->IV, 1, 12, f ) != 12 ) {
+		printf("  . fwrite of AES IV failed\n");
+		fclose(f);
+		return -1;
+	}
+	fclose(f);
+
+	return 0;
+}
+
 int generate_ec_keypair( server_enc_context_t *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 	int ret = 1;
 	ret = mbedtls_ecdh_gen_public( &ctx->grp, &ctx->d, &ctx->Q,
@@ -562,13 +591,13 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	printf("  OK!\n");
 
 #ifndef DDEBUG
-	print_buffer( (char *)"  . AES Key before HKDF : ", aes_key->key, aes_key->keylen_bits/8 );
+	print_buffer( (char *)"  . AES Key before HKDF : ", aes_key->key, keylen );
 #endif
 	/*
 	 * Use HKDF to increase the entropy of random AES Key material.
 	 */
 	print_progress( (char *)"  . Use HKDF over random AES key to add more entropy...");
-	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, aes_key->key, aes_key->keylen_bits/8, aes_key->key);
+	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, aes_key->key, keylen, aes_key->key);
 	if( ret != 0 ) {
 		printf("  . mbedtls_hkdf_extract() failed, ret = %d\n", ret ), fflush(stdout);
 		free(aes_key->key), free(aes_key->IV);
@@ -577,43 +606,11 @@ int aes_key_init(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_contex
 	printf("  OK!\n");
 
 #ifndef DDEBUG
-	print_buffer( (char *)"  . AES Key after HKDF :  ", aes_key->key, aes_key->keylen_bits/8 );
+	print_buffer( (char *)"  . AES Key after HKDF :  ", aes_key->key, keylen );
 	print_buffer( (char *)"  . AES IV : ", aes_key->IV, 12 );
 #endif
 
-#ifdef PERSIST_AES_KEY_MATERIAL
-	print_progress( (char *)"  . Write AES Key material to persistent storage..." );
-	FILE *f_aes_key = NULL, *f_aes_iv = NULL;
-
-	if( ( f_aes_key = fopen( "aes_key.bin", "wb" ) ) == NULL ) {
-		printf("  . fopen(aes_key.bin,rb) failed\n");
-		return -1;
-	}
-
-	if( ( f_aes_iv = fopen( "aes_iv.bin", "wb" ) ) == NULL ) {
-		printf("  . fopen(aes_iv.bin,wb+) failed\n");
-		fclose(f_aes_key);
-		return -1;
-	}
-
-	if( fwrite( aes_key->IV, 1, 12, f_aes_iv ) != 12 ) {
-		printf("  . fwrite of AES IV failed\n");
-		fclose(f_aes_key), fclose(f_aes_iv);
-		free(aes_key->IV);
-		return -1;
-	}
-	fclose(f_aes_iv);
-
-	if( fwrite( aes_key->key, 1, aes_key->keylen_bits / 8, f_aes_key ) != aes_key->keylen_bits / 8) {
-		printf("  . fwrite of AES Key failed\n");
-		fclose(f_aes_key);
-		free( aes_key->key ), free( aes_key->IV );
-		return -1;
-	}
-	printf(" OK!\n");
-
 	aes_key->keylen_bits = keylen * 8;
-#endif // PERSIST_AES_KEY_MATERIAL
 
 	return ret;
 }
@@ -882,7 +879,17 @@ int main( int argc, char *argv[] ) {
 	if( ret != 0 ) {
 		goto exit;
 	}
+
 	print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
+
+#ifdef PERSIST_AES_KEY_MATERIAL
+	print_progress( (char *)"  . Write AES Key material to persistent storage..." );
+	ret = persist_aes_key_material( &aes_key, (char *)"aes_key.bin", (char *)"aes_iv.bin");
+	if( ret != 0 ) {
+		printf("  . Failed\n\n\t . persist_aes_key_material() returned %d", ret);
+	}
+	printf("  OK!\n");
+#endif // PERSIST_AES_KEY_MATERIAL
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
 #ifndef DDEBUG
