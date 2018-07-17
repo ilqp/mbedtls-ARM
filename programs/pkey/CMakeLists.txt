@@ -16,7 +16,7 @@ target_link_libraries(ecdh_secp256r1 mbedtls)
 add_executable(encrypt_to_server encrypt_to_server.c)
 target_link_libraries(encrypt_to_server mbedtls)
 
-add_executable(encrypt_to_server2 encrypt_to_serve2.c)
+add_executable(encrypt_to_server2 encrypt_to_server2.c)
 target_link_libraries(encrypt_to_server2 mbedtls)
 
 add_executable(ecdsa ecdsa.c)
