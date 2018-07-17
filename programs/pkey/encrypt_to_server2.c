@@ -47,17 +47,17 @@
 
 #define CHECK_AND_RET( x ) { if ( (ret = x) != 0) return ret; }
 /*
- * Custom data types used
+ *  The minimal ECDH context structure.
  */
 typedef struct
 {
-	mbedtls_ecp_group grp;   /*!< The elliptic curve used. */
-	mbedtls_mpi d;           /*!< The private key of agent. */
-	mbedtls_ecp_point Q;     /*!< The public key of agent. */
-	mbedtls_ecp_point Qp;    /*!< The public key of the server. */
-	mbedtls_mpi z;           /*!< The shared secret. */
+    mbedtls_ecp_group grp;   /*!< The elliptic curve used. */
+    mbedtls_mpi d;           /*!< The private key. */
+    mbedtls_ecp_point Q;     /*!< The public key. */
+    mbedtls_ecp_point Qp;    /*!< The value of the public key of the peer. */
+    mbedtls_mpi z;           /*!< The shared secret. */
 }
-server_enc_context_t;
+_mbedtls_ecdh_context;
 
 typedef struct {
 	unsigned char *key;
@@ -149,7 +149,7 @@ int persist_aes_key_material(aes_key_t *aes_key, char *key_fname, char *iv_fname
 	return 0;
 }
 
-int generate_ec_keypair( server_enc_context_t *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
+int generate_ec_keypair( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 	int ret = 1;
 	ret = mbedtls_ecdh_gen_public( &ctx->grp, &ctx->d, &ctx->Q,
 				       mbedtls_ctr_drbg_random, ctr_drbg_ctx );
@@ -318,16 +318,16 @@ int read_server_key_material( mbedtls_ecp_point *Qp) {
 	return ret;
 }
 
-int compute_shared_key( server_enc_context_t *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
+int compute_shared_key( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 	return mbedtls_ecdh_compute_shared( &ctx->grp, &ctx->z, &ctx->Qp, &ctx->d,
 					   mbedtls_ctr_drbg_random, ctr_drbg_ctx );
 }
 
-void server_enc_context_init(server_enc_context_t *enc_ctx) {
-	memset( enc_ctx, 0, sizeof( server_enc_context_t ) );
+void _mbedtls_ecdh_context_init(_mbedtls_ecdh_context *enc_ctx) {
+	memset( enc_ctx, 0, sizeof( _mbedtls_ecdh_context ) );
 }
 
-void server_enc_context_free(server_enc_context_t *enc_ctx) {
+void _mbedtls_ecdh_context_free(_mbedtls_ecdh_context *enc_ctx) {
 	if( enc_ctx == NULL) return;
 
 	mbedtls_ecp_group_free( &enc_ctx->grp );
@@ -340,7 +340,7 @@ void server_enc_context_free(server_enc_context_t *enc_ctx) {
 int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
                   mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
 
-	server_enc_context_t enc_ctx;
+	_mbedtls_ecdh_context enc_ctx;
 
 	int curve = MBEDTLS_ECP_DP_SECP256R1;
 	int ret = 1;
@@ -348,7 +348,7 @@ int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 	/*
 	 * Initialize required contexts.
 	 */
-	server_enc_context_init( &enc_ctx );
+	_mbedtls_ecdh_context_init( &enc_ctx );
 
 	/*
 	 * Load the group information.
@@ -482,14 +482,14 @@ int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 
 	// ret = _enc_to_server( &enc_ctx, &in_aes_key, &output_buff );
 cleanup:
-	server_enc_context_free( &enc_ctx );
+	_mbedtls_ecdh_context_free( &enc_ctx );
 	return ret;
 
 }
 
 int dec_aes_at_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
                   mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
-	server_enc_context_t dec_ctx;
+	_mbedtls_ecdh_context dec_ctx;
 
 	int curve = MBEDTLS_ECP_DP_SECP256R1;
 	int ret = 1;
@@ -497,7 +497,7 @@ int dec_aes_at_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 	/*
 	 * Initialize required contexts.
 	 */
-	server_enc_context_init( &dec_ctx );
+	_mbedtls_ecdh_context_init( &dec_ctx );
 
 	/*
 	 * Load the group information.
@@ -627,7 +627,7 @@ int dec_aes_at_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 
 	print_buffer( (char *)"Decrypted AES Key: ", out_aes_key, 32);
 cleanup_dec:
-	server_enc_context_free( &dec_ctx );
+	_mbedtls_ecdh_context_free( &dec_ctx );
 	return ret;
 
 }
