@@ -656,23 +656,6 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 			off_t filesize ) {
 
 	int ret = 1;
-	/*
-	 * The encrypted file must be structured as follows:
-	 *
-	 *	00 .. 11			Initialization Vector
-	 *	12 .. 28			AES Encrypted Block #1
-	 *	..
-	 *  filesize - 17 .. filesize -1	AES-GCM Hash (ciphertext)
-	 */
-	if( filesize < 28 ) {
-		printf( "  . Failed!\n\n\t . File too short to be encrypted.\n" );
-		return -1;
-	}
-
-	/*
-	 * Subtract the IV + GCM Digest length.
-	 */
-	filesize -= ( 12 + 16 );
 
 	print_progress( (char *)"  . Set GCM Key...          ");
 	ret = mbedtls_gcm_setkey( gcm_ctx, MBEDTLS_CIPHER_ID_AES, aes_key->key, 256);
@@ -732,7 +715,6 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 	}
 	print_progress( (char *)"  . -> OK!\n");
 
-	/* Use constant-time buffer comparison */
 	unsigned char diff = 0;
 	for( off_t i = 0; i < 16; i++ ) {
 		diff |= in_buff[i] ^ out_buff[i];
@@ -924,6 +906,15 @@ int main( int argc, char *argv[] ) {
 		print_progress( (char *)"  . Encrypt the payload using AES GCM...  . COMPLETED!\n");
 	}
 	else if ( mode == MODE_DECRYPT ) {
+
+		if( filesize < 28 ) {
+			printf( "  . Failed!\n\n\t . File too short to be encrypted.\n" );
+			goto exit;
+		}
+
+		/* Subtract the IV + GCM Digest length. */
+		filesize -= ( 12 + 16 );
+
 		/*
 		 * Decrypt the payload data using AES GCM
 		 */
