@@ -337,10 +337,7 @@ void _mbedtls_ecdh_context_free(_mbedtls_ecdh_context *enc_ctx) {
 	mbedtls_mpi_free( &enc_ctx->z  );
 }
 
-int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
-                  mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
-
-	_mbedtls_ecdh_context enc_ctx;
+int ecdh_init(_mbedtls_ecdh_context *ctx) {
 
 	int curve = MBEDTLS_ECP_DP_SECP256R1;
 	int ret = 1;
@@ -348,78 +345,161 @@ int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 	/*
 	 * Initialize required contexts.
 	 */
-	_mbedtls_ecdh_context_init( &enc_ctx );
+	_mbedtls_ecdh_context_init( ctx );
 
 	/*
 	 * Load the group information.
 	 */
 	print_progress(  (char *)"  . Load the group information for the ECC..." );
-	ret = mbedtls_ecp_group_load( &enc_ctx.grp, curve );
+	ret = mbedtls_ecp_group_load( &ctx->grp, curve );
 	if( ret != 0 ) {
 		printf( " failed!\n\n\t . mbedtls_ecp_group_load() returned %d\n", ret ), fflush(stdout);
-		goto cleanup;
+		return ret;
 	}
 	print_progress(  (char *)"  . OK!\n");
 
-#ifndef DDEBUG
+#ifdef DDEBUG
 	printf("===========================================================================\n");
-	print_ecp_group(enc_ctx.grp);
+	print_ecp_group(ctx->grp);
 #endif
+	return 0;
+}
 
-#ifdef USE_PERSISTED_CLIENT_KEY_MATERIAL
+int ecdh_init_Q( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx,
+                 char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname) {
+	int ret;
 	/*
 	 * Read client's key material from persisted file;
 	 */
-	print_progress(  (char *)"  . Read client's key material from persisted file..." );
-	ret = read_ec_keypair( &enc_ctx.d, &enc_ctx.Q, (char *)"cli_d.bin", (char *)"cli_QX.bin", (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
+	print_progress(  (char *)"  . Try to read (d, Q) from persisted file..." );
+	ret = read_ec_keypair( &ctx->d, &ctx->Q, d_fname, QX_fname, QY_fname, QZ_fname);
 	if( ret != 0 ) {
-		goto cleanup;
+			/*
+			 * Generate client's public key pair;
+			 */
+			print_progress(  (char *)"  . Try to read (d, Q) from persisted file..." );
+			print_progress(  (char *)"  . Generating (d,Q)..." );
+			ret = generate_ec_keypair( ctx, ctr_drbg_ctx );
+			if( ret != 0 ) {
+				return ret;
+			}
+			print_progress(  (char *)"  . OK!\n");
+
+		#ifdef PERSIST_CLIENT_KEY_MATERIAL
+			printf("Persist client key...\n");
+			write_ec_keypair(&ctx->d, &ctx->Q, d_fname, QX_fname, QY_fname, QZ_fname);
+		#endif // PERSIST_CLIENT_KEY_MATERIAL
+
 	}
 	print_progress(  (char *)"  . OK!\n");
-#else // USE_PERSISTED_CLIENT_KEY_MATERIAL
-	/*
-	 * Generate client's public key pair;
-	 */
-	print_progress(  (char *)"  . Generating public key pair for client..." );
-	ret = generate_ec_keypair( &enc_ctx, ctr_drbg_ctx );
-	if( ret != 0 ) {
-		goto cleanup;
-	}
-	print_progress(  (char *)"  . OK!\n");
-
-#ifdef PERSIST_CLIENT_KEY_MATERIAL
-	write_ec_keypair(&enc_ctx.d, &enc_ctx.Q,
-	                   (char*)"cli_d.bin", (char*)"cli_QX.bin",
-	                   (char*)"cli_QY.bin", (char*)"cli_QZ.bin");
-#endif // PERSIST_CLIENT_KEY_MATERIAL
-
-#endif // USE_PERSISTED_CLIENT_KEY_MATERIAL
 
 #ifndef DDEBUG
 	printf("===========================================================================\n");
-	mbedtls_mpi_write_file("enc_ctx.d: ", &enc_ctx.d, 16, NULL);
-	mbedtls_printf("enc_ctx.Q:\n");
-	print_ecp_point(enc_ctx.Q);
+	mbedtls_mpi_write_file("ctx->d: ", &ctx->d, 16, NULL);
+	mbedtls_printf("ctx->Q:\n");
+	print_ecp_point(ctx->Q);
 #endif
+	return 0;
+}
 
+int ecdh_init_Qp( _mbedtls_ecdh_context *ctx, char *QX_fname, char *QY_fname, char *QZ_fname) {
 	/*
 	 * Load the servers public key
 	 */
+	int ret = 1;
 	print_progress(  (char *)"  . Load the servers public key into context..." );
-	ret = read_ec_keypair( NULL, &enc_ctx.Qp, NULL, (char *)"srv_QX.bin", (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
+	ret = read_ec_keypair( NULL, &ctx->Qp, NULL, QX_fname, QY_fname, QZ_fname );
 	if( ret != 0 ) {
-		goto cleanup;
+		return ret;
 	}
 	print_progress(  (char *)"  . OK!\n");
 
 #ifndef DDEBUG
 	printf("===========================================================================\n");
-	printf("enc_ctx.Qp:\n");
-	print_ecp_point(enc_ctx.Qp);
+	printf("ctx->Qp:\n");
+	print_ecp_point(ctx->Qp);
+#endif
+	return ret;
+}
+
+int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mode,
+                   mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
+
+	_mbedtls_ecdh_context ctx;
+	int ret = 1;
+
+	print_progress(  (char *)"  . ECDH Init... STARTED!\n" );
+	ret = ecdh_init(&ctx);
+	if( ret != 0 ) {
+		printf( " failed!\n\n\t . ecdh_init() returned %d\n", ret ), fflush(stdout);
+		goto cleanup;
+	}
+	print_progress(  (char *)"  . ECDH Init... OK!\n" );
+
+	if(mode == MODE_ENCRYPT) {
+		print_progress(  (char *)"  . ECDH Load Q... STARTED!\n" );
+#ifdef USE_PERSISTED_CLIENT_KEY_MATERIAL
+		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
+		             (char *)"cli_d.bin", (char *)"cli_QX.bin",
+		             (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
+#else
+		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
+		                  (char *)"cli_d.bin", (char *)"cli_QX.bin",
+		                  (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
+#endif
+		if( ret != 0 ) {
+			printf( " failed!\n\n\t . ecdh_init_Q() returned %d\n", ret ), fflush(stdout);
+			goto cleanup;
+		}
+		print_progress(  (char *)"  . ECDH Load Q... OK!\n" );
+
+		/*
+		 * Load the servers public key
+		 */
+		print_progress(  (char *)"  . Load the servers public key into context..." );
+		ret = read_ec_keypair( NULL, &ctx.Qp, NULL, (char *)"srv_QX.bin", (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
+		if( ret != 0 ) {
+			goto cleanup;
+		}
+		print_progress(  (char *)"  . OK!\n");
+	}
+	else {
+#ifdef USE_PERSISTED_SERVER_KEY_MATERIAL
+		print_progress(  (char *)"  . ECDH Load Q... STARTED!\n" );
+		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
+		                   (char *)"srv_d.bin", (char *)"srv_QX.bin",
+		                   (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
+#else
+		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
+		                   (char *)"srv_d.bin", (char *)"srv_QX.bin",
+		                   (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
+#endif
+		if( ret != 0 ) {
+			printf( " failed!\n\n\t . ecdh_init_Q() returned %d\n", ret ), fflush(stdout);
+			goto cleanup;
+		}
+		print_progress(  (char *)"  . ECDH Load Q... OK!\n" );
+		/*
+		 * Load the Client's public key
+		 */
+		print_progress(  (char *)"  . Load the Client's public key into context..." );
+		ret = read_ec_keypair( NULL, &ctx.Qp, NULL, (char *)"cli_QX.bin", (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
+		if( ret != 0 ) {
+			goto cleanup;
+		}
+		print_progress(  (char *)"  . OK!\n");
+
+	}
+	print_progress(  (char *)"  . ECDH Load Q... OK!\n" );
+
+#ifndef DDEBUG
+	printf("===========================================================================\n");
+	printf("ctx.Qp:\n");
+	print_ecp_point(ctx.Qp);
 #endif
 
 	print_progress(  (char *)"  . Compute the shared secret..." );
-	ret = compute_shared_key( &enc_ctx, ctr_drbg_ctx );
+	ret = compute_shared_key( &ctx, ctr_drbg_ctx );
 	if( ret != 0 ) {
 		printf( " failed\n  ! compute_shared_key() returned %d\n", ret ), fflush(stdout);
 		goto cleanup;
@@ -428,13 +508,13 @@ int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 
 #ifndef DDEBUG
 	printf("===========================================================================\n");
-	mbedtls_mpi_write_file("enc_ctx.z: ", &enc_ctx.z, 16, NULL);
-	printf("Length of enc_ctx.z in bits: %zu\n", mbedtls_mpi_bitlen(&enc_ctx.z));
+	mbedtls_mpi_write_file("ctx.z: ", &ctx.z, 16, NULL);
+	printf("Length of ctx.z in bits: %zu\n", mbedtls_mpi_bitlen(&ctx.z));
 #endif
 
 	unsigned char *shared_aes_key = (unsigned char*) calloc(32,1);
 
-	ret = mbedtls_mpi_write_binary( &enc_ctx.z, shared_aes_key, 32 );
+	ret = mbedtls_mpi_write_binary( &ctx.z, shared_aes_key, 32 );
 	if( ret != 0 ) {
 		printf( " Failed\n  ! mbedtls_mpi_write_binary returned %d\n", ret );
 		goto cleanup;
@@ -462,14 +542,14 @@ int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 
 #ifndef DISABLE_VERIFICATION
 	print_progress( (char *)"  . Print the length of final shared AES Key.\n");
-	ret = mbedtls_mpi_read_binary( &enc_ctx.z, shared_aes_key, 32 );
+	ret = mbedtls_mpi_read_binary( &ctx.z, shared_aes_key, 32 );
 	if( ret != 0 ) {
 		printf( " Failed\n  ! mbedtls_mpi_read_binary returned %d\n", ret );
 		goto cleanup;
 	}
 
-	mbedtls_mpi_write_file("shared_aes_key: ", &enc_ctx.z, 16, NULL);
-	printf("Length of shared_aes_key in bits: %zu\n", mbedtls_mpi_bitlen(&enc_ctx.z));
+	mbedtls_mpi_write_file("shared_aes_key: ", &ctx.z, 16, NULL);
+	printf("Length of shared_aes_key in bits: %zu\n", mbedtls_mpi_bitlen(&ctx.z));
 	printf("===========================================================================\n");
 #endif
 
@@ -478,158 +558,10 @@ int enc_key_to_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
 		out_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
 
 	print_buffer( (char *)"Encrypted AES Key: ", out_aes_key, 32);
-	// ret = compute_shared_aes_key( &enc_ctx.z, shared_aes_key );
 
-	// ret = _enc_to_server( &enc_ctx, &in_aes_key, &output_buff );
 cleanup:
-	_mbedtls_ecdh_context_free( &enc_ctx );
+	_mbedtls_ecdh_context_free( &ctx );
 	return ret;
-
-}
-
-int dec_aes_at_server(unsigned char *in_aes_key, unsigned char *out_aes_key,
-                  mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
-	_mbedtls_ecdh_context dec_ctx;
-
-	int curve = MBEDTLS_ECP_DP_SECP256R1;
-	int ret = 1;
-
-	/*
-	 * Initialize required contexts.
-	 */
-	_mbedtls_ecdh_context_init( &dec_ctx );
-
-	/*
-	 * Load the group information.
-	 */
-	print_progress(  (char *)"  . Load the group information for the ECC..." );
-	ret = mbedtls_ecp_group_load( &dec_ctx.grp, curve );
-	if( ret != 0 ) {
-		printf( " failed!\n\n\t . mbedtls_ecp_group_load() returned %d\n", ret ), fflush(stdout);
-		goto cleanup_dec;
-	}
-	print_progress(  (char *)"  . OK!\n");
-
-#ifndef DDEBUG
-	printf("===========================================================================\n");
-	print_ecp_group(dec_ctx.grp);
-#endif
-
-#ifdef USE_PERSISTED_SERVER_KEY_MATERIAL
-	/*
-	 * Read client's key material from persisted file;
-	 */
-	print_progress(  (char *)"  . Read Server's key material from persisted file..." );
-	ret = read_ec_keypair( &dec_ctx.d, &dec_ctx.Q, (char *)"srv_d.bin", (char *)"srv_QX.bin", (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
-	if( ret != 0 ) {
-		goto cleanup_dec;
-	}
-	print_progress(  (char *)"  . OK!\n");
-#else // USE_PERSISTED_SERVER_KEY_MATERIAL
-	/*
-	 * Generate Server's public key pair;
-	 */
-	print_progress(  (char *)"  . Generating public key pair for Server..." );
-	ret = generate_ec_keypair( &dec_ctx, ctr_drbg_ctx );
-	if( ret != 0 ) {
-		goto cleanup_dec;
-	}
-	print_progress(  (char *)"  . OK!\n");
-
-#ifdef PERSIST_SERVER_KEY_MATERIAL
-	write_ec_keypair(&dec_ctx.d, &dec_ctx.Q,
-	                   (char*)"srv_d.bin", (char*)"srv_QX.bin",
-	                   (char*)"srv_QY.bin", (char*)"srv_QZ.bin");
-#endif // PERSIST_CLIENT_KEY_MATERIAL
-
-#endif // USE_PERSISTED_CLIENT_KEY_MATERIAL
-
-#ifndef DDEBUG
-	printf("===========================================================================\n");
-	mbedtls_mpi_write_file("dec_ctx.d: ", &dec_ctx.d, 16, NULL);
-	mbedtls_printf("dec_ctx.Q:\n");
-	print_ecp_point(dec_ctx.Q);
-#endif
-	/*
-	 * Load the Client's public key
-	 */
-	print_progress(  (char *)"  . Load the Client's public key into context..." );
-	ret = read_ec_keypair( NULL, &dec_ctx.Qp, NULL, (char *)"cli_QX.bin", (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
-	if( ret != 0 ) {
-		goto cleanup_dec;
-	}
-	print_progress(  (char *)"  . OK!\n");
-
-#ifndef DDEBUG
-	printf("===========================================================================\n");
-	printf("dec_ctx.Qp:\n");
-	print_ecp_point(dec_ctx.Qp);
-#endif
-
-	print_progress(  (char *)"  . Compute the shared secret..." );
-	ret = compute_shared_key( &dec_ctx, ctr_drbg_ctx );
-	if( ret != 0 ) {
-		printf( " failed\n  ! compute_shared_key() returned %d\n", ret ), fflush(stdout);
-		goto cleanup_dec;
-	}
-	print_progress(  (char *)"  . OK!\n");
-
-#ifndef DDEBUG
-	printf("===========================================================================\n");
-	mbedtls_mpi_write_file("dec_ctx.z: ", &dec_ctx.z, 16, NULL);
-	printf("Length of dec_ctx.z in bits: %zu\n", mbedtls_mpi_bitlen(&dec_ctx.z));
-#endif
-
-	unsigned char *shared_aes_key = (unsigned char*) calloc(32,1);
-
-	ret = mbedtls_mpi_write_binary( &dec_ctx.z, shared_aes_key, 32 );
-	if( ret != 0 ) {
-		printf( " Failed\n  ! mbedtls_mpi_write_binary returned %d\n", ret );
-		goto cleanup_dec;
-	}
-	print_buffer( (char*)"Shared AES Key in buffer: ", shared_aes_key, 32);
-
-#ifndef DDEBUG
-	print_buffer( (char *)"  . Shared AES Key before HKDF : ", shared_aes_key, 32 );
-#endif
-	/*
-	 * Use HKDF to increase the entropy of random AES Key material.
-	 */
-	print_progress( (char *)"  . Use HKDF over shared AES key to add more entropy..." );
-	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, shared_aes_key, 32, shared_aes_key );
-	if( ret != 0 ) {
-		printf("  . mbedtls_hkdf_extract() failed, ret = %d\n", ret ), fflush(stdout);
-		free( shared_aes_key );
-		goto cleanup_dec;
-	}
-	printf("  OK!\n");
-
-#ifndef DDEBUG
-	print_buffer( (char *)"  . Shared AES Key after HKDF :  ", shared_aes_key, 32 );
-#endif
-
-#ifndef DISABLE_VERIFICATION
-	print_progress( (char *)"  . Print the length of final shared AES Key.\n");
-	ret = mbedtls_mpi_read_binary( &dec_ctx.z, shared_aes_key, 32 );
-	if( ret != 0 ) {
-		printf( " Failed\n  ! mbedtls_mpi_read_binary returned %d\n", ret );
-		goto cleanup_dec;
-	}
-
-	mbedtls_mpi_write_file("shared_aes_key: ", &dec_ctx.z, 16, NULL);
-	printf("Length of shared_aes_key in bits: %zu\n", mbedtls_mpi_bitlen(&dec_ctx.z));
-	printf("===========================================================================\n");
-#endif
-
-	print_progress( (char *)"  . Decrypt the Ephemeral AES key with shared AES Key.  OK!\n");
-	for( int i = 0; i < 32; i++ )
-		out_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
-
-	print_buffer( (char *)"Decrypted AES Key: ", out_aes_key, 32);
-cleanup_dec:
-	_mbedtls_ecdh_context_free( &dec_ctx );
-	return ret;
-
 }
 
 #ifdef USE_PERSISTED_AES_KEY_MATERIAL
@@ -942,11 +874,10 @@ int main( int argc, char *argv[] ) {
 		printf("  . Failed!\n\n\t . lseek(fin, 0, SEEK_SET) failed...\n");
 		goto exit;
 	}
-	printf("  OK!\n");
 
-#ifdef DEBUG
+	printf("  OK!\n");
 	printf("  . Input filesize = %lld \n", filesize);
-#endif
+
 	/*
 	 * Seed the random number generator.
 	 */
@@ -976,14 +907,19 @@ int main( int argc, char *argv[] ) {
 		/*
 		 * Initialize the AES Key and IV.
 		 */
+		print_progress( (char *)"  . Get the AES KEY and IV... STARTED!");
+
 #ifdef USE_PERSISTED_AES_KEY_MATERIAL
+
 		print_progress( (char *)"  . Read previously persisted ephemeral AES Key and IV... " );
 		ret = read_aes_key_material( &aes_key );
 		if( ret != 0 ) {
 			goto exit;
 		}
 		printf("  OK!\n");
+
 #else // USE_PERSISTED_AES_KEY_MATERIAL
+
 		print_progress( (char *)"  . Generate ephemeral AES Key and IV... STARTED!\n" );
 		ret = aes_key_gen( &aes_key, 256, &ctr_drbg_ctx, &sha_ctx );
 		if( ret != 0 ) {
@@ -992,22 +928,28 @@ int main( int argc, char *argv[] ) {
 		print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
 
 #ifdef PERSIST_AES_KEY_MATERIAL
+
 		print_progress( (char *)"  . Write AES Key material to persistent storage..." );
 		ret = persist_aes_key_material( &aes_key, (char *)"aes_key.bin", (char *)"aes_iv.bin");
 		if( ret != 0 ) {
 			printf("  . Failed\n\n\t . persist_aes_key_material() returned %d", ret);
 		}
 		printf("  OK!\n");
+
 #endif // PERSIST_AES_KEY_MATERIAL
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
-#ifndef DDEBUG
 		print_buffer( (char *)"  . Final AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
 		print_buffer( (char *)"  . Final AES IV : ", aes_key.IV, 12 );
-#endif
+
+		printf( "  . Get the AES KEY and IV... OK!");
 
 		print_progress( (char *)"  . Encrypt AES key to Server... STARTED!\n");
+#if 1
+		ret = ec_operation( aes_key.key, &encrypted_aes_key[0], MODE_ENCRYPT, &ctr_drbg_ctx, &sha_ctx );
+#else
 		ret = enc_key_to_server( aes_key.key, &encrypted_aes_key[0], &ctr_drbg_ctx, &sha_ctx );
+#endif
 		if( ret != 0 ) {
 			printf("  . Encrypt AES key to Server... Failed\n  . enc_key_to_server() return %d", ret );
 			goto exit;
@@ -1048,7 +990,11 @@ int main( int argc, char *argv[] ) {
 #endif
 
 		print_progress( (char *)"  .Decrypt the AES Key at server... STARTED!\n");
+#if 1
+		ret = ec_operation( &encrypted_aes_key[0], aes_key.key, MODE_DECRYPT, &ctr_drbg_ctx, &sha_ctx );
+#else
 		ret = dec_aes_at_server( &encrypted_aes_key[0], aes_key.key, &ctr_drbg_ctx, &sha_ctx );
+#endif
 		if( ret != 0 ) {
 			printf("  . Encrypt AES key to Server... Failed\n  . enc_key_to_server() return %d", ret );
 			goto exit;
@@ -1056,7 +1002,9 @@ int main( int argc, char *argv[] ) {
 		print_progress( (char *)"  . Decrypt AES key to Server... OK!\n");
 
 		print_progress( (char *)"  . Decrypt the payload using AES GCM... STARTED!\n");
+
 		ret = do_aes_gcm_decrypt ( &gcm_ctx, &aes_key, fin, fout, filesize - 32);
+
 		if( ret != 0 ) {
 			printf("  . Failed!\n\n\t . Decrypt the payload using AES GCM... FAILED!\n  . do_aes_gcm_decrypt() returned %d", ret), fflush(stdout);
 			goto exit;
