@@ -100,6 +100,7 @@ void aes_free( aes_key_t *aes_key ) {
  * Utility functions
  */
 
+#ifdef DEBUG
 static void print_ecp_group_id_name(mbedtls_ecp_group_id id) {
     switch(id) {
     case MBEDTLS_ECP_DP_NONE:        printf("\t Curve : MBEDTLS_ECP_DP_NONE\n"); break;
@@ -146,9 +147,14 @@ static void print_buffer(char *title, unsigned char *ptr, size_t len) {
 	}
 	printf("\n");
 }
+#endif
 
 void print_progress(char *msg) {
+#ifdef TRACK_PROGRESS
 	printf("%s", msg), fflush( stdout );
+#else
+	((void)(msg));
+#endif
 }
 
 /*
@@ -218,6 +224,7 @@ int write_hexmpi_from_file( mbedtls_mpi *mp, char *fname) {
 	return 0;
 }
 
+#ifdef PERSIST_AES_KEY_MATERIAL
 int persist_aes_key_material(aes_key_t *aes_key, char *key_fname, char *iv_fname) {
 	FILE *f = NULL;
 
@@ -246,6 +253,7 @@ int persist_aes_key_material(aes_key_t *aes_key, char *key_fname, char *iv_fname
 
 	return 0;
 }
+#endif
 
 int generate_ec_keypair( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 	int ret = 1;
@@ -260,7 +268,7 @@ int generate_ec_keypair( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *c
 	 */
 	ret = mbedtls_mpi_lset( &ctx->Q.Z, 1 );
 	if( ret != 0 ) {
-		printf( " failed\n  ! mbedtls_mpi_lset returned %d\n", ret ), fflush(stdout);
+		printf( " failed\n\n\t  . mbedtls_mpi_lset returned %d\n", ret ), fflush(stdout);
 	}
 
 	return ret;
@@ -323,7 +331,7 @@ int ecdh_init_grp(_mbedtls_ecdh_context *ctx) {
 	}
 	print_progress(  (char *)"  . OK!\n");
 
-#ifdef DDEBUG
+#ifdef DEBUG
 	printf("===========================================================================\n");
 	print_ecp_group(ctx->grp);
 #endif
@@ -358,7 +366,7 @@ int ecdh_init_Q( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_
 	}
 	print_progress(  (char *)"  . OK!\n");
 
-#ifndef DDEBUG
+#ifdef DEBUG
 	printf("===========================================================================\n");
 	mbedtls_mpi_write_file("ctx->d: ", &ctx->d, 16, NULL);
 	mbedtls_printf("ctx->Q:\n");
@@ -379,7 +387,7 @@ int ecdh_init_Qp( _mbedtls_ecdh_context *ctx, char *QX_fname, char *QY_fname, ch
 	}
 	print_progress(  (char *)"  . OK!\n");
 
-#ifndef DDEBUG
+#ifdef DEBUG
 	printf("===========================================================================\n");
 	printf("ctx->Qp:\n");
 	print_ecp_point(ctx->Qp);
@@ -448,7 +456,7 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 	}
 	print_progress(  (char *)"  . ECDH Load Q... OK!\n" );
 
-#ifndef DDEBUG
+#ifdef DEBUG
 	printf("===========================================================================\n");
 	printf("ctx.Qp:\n");
 	print_ecp_point(ctx.Qp);
@@ -463,7 +471,7 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 	}
 	print_progress(  (char *)"  . OK!\n");
 
-#ifndef DDEBUG
+#ifdef DEBUG
 	printf("===========================================================================\n");
 	mbedtls_mpi_write_file("ctx.z: ", &ctx.z, 16, NULL);
 	printf("Length of ctx.z in bits: %zu\n", mbedtls_mpi_bitlen(&ctx.z));
@@ -476,9 +484,8 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 		printf( " Failed\n  ! mbedtls_mpi_write_binary returned %d\n", ret );
 		goto cleanup;
 	}
-	print_buffer( (char*)"Shared AES Key in buffer: ", shared_aes_key, 32);
 
-#ifndef DDEBUG
+#ifdef DEBUG
 	print_buffer( (char *)"  . Shared AES Key before HKDF : ", shared_aes_key, 32 );
 #endif
 	/*
@@ -491,13 +498,13 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 		free( shared_aes_key );
 		goto cleanup;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
-#ifndef DDEBUG
+#ifdef DEBUG
 	print_buffer( (char *)"  . Shared AES Key after HKDF :  ", shared_aes_key, 32 );
 #endif
 
-#ifndef DISABLE_VERIFICATION
+#ifdef DISABLE_VERIFICATION
 	print_progress( (char *)"  . Print the length of final shared AES Key.\n");
 	ret = mbedtls_mpi_read_binary( &ctx.z, shared_aes_key, 32 );
 	if( ret != 0 ) {
@@ -514,8 +521,9 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 	for( int i = 0; i < 32; i++ )
 		out_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
 
+#ifdef DEBUG
 	print_buffer( (char *)"Encrypted AES Key: ", out_aes_key, 32);
-
+#endif
 cleanup:
 	_mbedtls_ecdh_context_free( &ctx );
 	return ret;
@@ -565,7 +573,7 @@ int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context
 		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
 		return ret;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	print_progress( (char *)"  . Generate random data for AES IV");
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->IV, 12 );
@@ -573,9 +581,9 @@ int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context
 		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
 		return ret;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
-#ifndef DDEBUG
+#ifdef DEBUG
 	print_buffer( (char *)"  . AES Key before HKDF : ", aes_key->key, keylen );
 #endif
 	/*
@@ -588,9 +596,9 @@ int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context
 		free(aes_key->key), free(aes_key->IV);
 		return ret;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
-#ifndef DDEBUG
+#ifdef DEBUG
 	print_buffer( (char *)"  . AES Key after HKDF :  ", aes_key->key, keylen );
 	print_buffer( (char *)"  . AES IV : ", aes_key->IV, 12 );
 #endif
@@ -618,7 +626,7 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 		printf( "  . failed!\n\n\t . mbedtls_gcm_setkey() returned %d", ret), fflush(stdout);
 		return ret;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	/*
 	 * Encrypt and write the ciphertext.
@@ -646,7 +654,7 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 			return -1;
 		}
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	/*
 	 * Finally write the HMAC.
@@ -657,7 +665,7 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 		printf( "  . failed!\n\n\t . mbedtls_gcm_finish() returned %d", ret), fflush(stdout);
 		return ret;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	if( fwrite( buffer, 1, 16, fout ) != 16 ) {
 		mbedtls_fprintf( stderr, "fwrite(%d bytes) failed\n", 16 );
@@ -703,7 +711,7 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 		printf( "  . Failed!\n\n\t . mbedtls_gcm_setkey() returned %d", ret), fflush(stdout);
 		return ret;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	/*
 	 * Encrypt and write the ciphertext.
@@ -737,7 +745,7 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 			return -1;
 		}
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	/*
 	 * Finally process the HMAC.
@@ -753,7 +761,7 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 		printf( "   . Failed!\n\n\t . mbedtls_gcm_finish() returned %d", ret), fflush(stdout);
 		return ret;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	/* Use constant-time buffer comparison */
 	unsigned char diff = 0;
@@ -780,12 +788,13 @@ int main( int argc, char *argv[] ) {
 	mbedtls_gcm_context gcm_ctx;
 
 	print_progress( (char *)"Initialize entropy, ctr_drbg, sha and gcm contexts...");
+
 	aes_key_init( &aes_key, 32, 12 );
 	mbedtls_entropy_init( &entropy_ctx );
 	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
 	mbedtls_md_init( &sha_ctx );
 	mbedtls_gcm_init( &gcm_ctx );
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	off_t filesize;
 
@@ -820,9 +829,11 @@ int main( int argc, char *argv[] ) {
 		goto exit;
 	}
 
-	printf("  OK!\n");
-	printf("  . Input filesize = %lld \n", filesize);
+	print_progress(  (char *)"  . OK!\n");
 
+#ifdef DEBUG
+	printf("  . Input filesize = %lld \n", filesize);
+#endif
 	/*
 	 * Seed the random number generator.
 	 */
@@ -846,7 +857,7 @@ int main( int argc, char *argv[] ) {
 		printf( "  . Failed!\n\n\t . mbedtls_md_setup() returned -0x%04x\n", -ret );
 		return ret;
 	}
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	if( mode == MODE_ENCRYPT ) {
 		/*
@@ -861,7 +872,7 @@ int main( int argc, char *argv[] ) {
 		if( ret != 0 ) {
 			goto exit;
 		}
-		printf("  OK!\n");
+		print_progress(  (char *)"  . OK!\n");
 
 #else // USE_PERSISTED_AES_KEY_MATERIAL
 
@@ -879,22 +890,20 @@ int main( int argc, char *argv[] ) {
 		if( ret != 0 ) {
 			printf("  . Failed\n\n\t . persist_aes_key_material() returned %d", ret);
 		}
-		printf("  OK!\n");
+		print_progress(  (char *)"  . OK!\n");
 
 #endif // PERSIST_AES_KEY_MATERIAL
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
+#ifdef DEBUG
 		print_buffer( (char *)"  . Final AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
 		print_buffer( (char *)"  . Final AES IV : ", aes_key.IV, 12 );
+#endif
 
-		printf( "  . Get the AES KEY and IV... OK!");
+		print_progress( (char *)"  . Get the AES KEY and IV... OK!");
 
 		print_progress( (char *)"  . Encrypt AES key to Server... STARTED!\n");
-#if 1
 		ret = ec_operation( aes_key.key, &encrypted_aes_key[0], MODE_ENCRYPT, &ctr_drbg_ctx, &sha_ctx );
-#else
-		ret = enc_key_to_server( aes_key.key, &encrypted_aes_key[0], &ctr_drbg_ctx, &sha_ctx );
-#endif
 		if( ret != 0 ) {
 			printf("  . Encrypt AES key to Server... Failed\n  . enc_key_to_server() return %d", ret );
 			goto exit;
@@ -928,18 +937,14 @@ int main( int argc, char *argv[] ) {
 			printf("  . failed to read 32 bytes\n");
 			goto exit;
 		}
-		printf("  OK!\n");
+		print_progress(  (char *)"  . OK!\n");
 
 #ifdef DEBUG
 		print_buffer( (char *)"  . Encrypted AES Key: ", &encrypted_aes_key[0], 32);
 #endif
 
 		print_progress( (char *)"  .Decrypt the AES Key at server... STARTED!\n");
-#if 1
 		ret = ec_operation( &encrypted_aes_key[0], aes_key.key, MODE_DECRYPT, &ctr_drbg_ctx, &sha_ctx );
-#else
-		ret = dec_aes_at_server( &encrypted_aes_key[0], aes_key.key, &ctr_drbg_ctx, &sha_ctx );
-#endif
 		if( ret != 0 ) {
 			printf("  . Encrypt AES key to Server... Failed\n  . enc_key_to_server() return %d", ret );
 			goto exit;
@@ -963,7 +968,7 @@ exit:
 	mbedtls_entropy_free( &entropy_ctx );
 	mbedtls_gcm_free( &gcm_ctx );
 	aes_free( &aes_key );
-	printf("  OK!\n");
+	print_progress(  (char *)"  . OK!\n");
 
 	return ret;
 }
