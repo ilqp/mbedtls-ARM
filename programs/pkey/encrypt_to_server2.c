@@ -302,12 +302,7 @@ int write_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q, char *d_fname, char 
 	return 0;
 }
 
-int compute_shared_key( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
-	return mbedtls_ecdh_compute_shared( &ctx->grp, &ctx->z, &ctx->Qp, &ctx->d,
-					   mbedtls_ctr_drbg_random, ctr_drbg_ctx );
-}
-
-int ecdh_init(_mbedtls_ecdh_context *ctx) {
+int ecdh_init_grp(_mbedtls_ecdh_context *ctx) {
 
 	int curve = MBEDTLS_ECP_DP_SECP256R1;
 	int ret = 1;
@@ -399,9 +394,9 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 	int ret = 1;
 
 	print_progress(  (char *)"  . ECDH Init... STARTED!\n" );
-	ret = ecdh_init(&ctx);
+	ret = ecdh_init_grp(&ctx);
 	if( ret != 0 ) {
-		printf( " failed!\n\n\t . ecdh_init() returned %d\n", ret ), fflush(stdout);
+		printf( " failed!\n\n\t . ecdh_init_grp() returned %d\n", ret ), fflush(stdout);
 		goto cleanup;
 	}
 	print_progress(  (char *)"  . ECDH Init... OK!\n" );
@@ -460,7 +455,8 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 #endif
 
 	print_progress(  (char *)"  . Compute the shared secret..." );
-	ret = compute_shared_key( &ctx, ctr_drbg_ctx );
+	ret = mbedtls_ecdh_compute_shared( &ctx.grp, &ctx.z, &ctx.Qp, &ctx.d,
+					   mbedtls_ctr_drbg_random, ctr_drbg_ctx );
 	if( ret != 0 ) {
 		printf( " failed\n  ! compute_shared_key() returned %d\n", ret ), fflush(stdout);
 		goto cleanup;
