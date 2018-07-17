@@ -25,16 +25,16 @@
  * Macros to control the operation
  */
 
-#define MODE_ENCRYPT    0
-#define MODE_DECRYPT    1
+#define MODE_ENCRYPT 0
+#define MODE_DECRYPT 1
 
 #define USAGE   \
     "\n  %s <mode> <input filename> <output filename>\n" \
     "\n   <mode>: 0 = encrypt, 1 = decrypt\n" \
     "\n"
 
-#define PERSIST_AES_KEY_MATERIAL
-#define USE_PERSISTED_AES_KEY_MATERIAL
+// #define PERSIST_AES_KEY_MATERIAL
+// #define USE_PERSISTED_AES_KEY_MATERIAL
 
 #define PERSIST_CLIENT_KEY_MATERIAL
 #define USE_PERSISTED_CLIENT_KEY_MATERIAL
@@ -47,15 +47,15 @@
 
 #define CHECK_AND_RET( x ) { if ( (ret = x) != 0) return ret; }
 /*
- *  The minimal ECDH context structure.
+ * The minimal ECDH context structure.
  */
 typedef struct
 {
-    mbedtls_ecp_group grp;   /*!< The elliptic curve used. */
-    mbedtls_mpi d;           /*!< The private key. */
-    mbedtls_ecp_point Q;     /*!< The public key. */
-    mbedtls_ecp_point Qp;    /*!< The value of the public key of the peer. */
-    mbedtls_mpi z;           /*!< The shared secret. */
+	mbedtls_ecp_group grp;	 /*!< The elliptic curve used. */
+	mbedtls_mpi d;	 	 /*!< The private key. */
+	mbedtls_ecp_point Q;	 /*!< The public key. */
+	mbedtls_ecp_point Qp;	 /*!< The value of the public key of the peer. */
+	mbedtls_mpi z;		 /*!< The shared secret. */
 }
 _mbedtls_ecdh_context;
 
@@ -102,42 +102,42 @@ void aes_free( aes_key_t *aes_key ) {
 
 #ifdef DEBUG
 static void print_ecp_group_id_name(mbedtls_ecp_group_id id) {
-    switch(id) {
-    case MBEDTLS_ECP_DP_NONE:        printf("\t Curve : MBEDTLS_ECP_DP_NONE\n"); break;
-    case MBEDTLS_ECP_DP_SECP192R1:   printf("\t Curve : MBEDTLS_ECP_DP_SECP192R1\n"); break;
-    case MBEDTLS_ECP_DP_SECP224R1:   printf("\t Curve : MBEDTLS_ECP_DP_SECP224R1\n"); break;
-    case MBEDTLS_ECP_DP_SECP256R1:   printf("\t Curve : MBEDTLS_ECP_DP_SECP256R1\n"); break;
-    case MBEDTLS_ECP_DP_SECP384R1:   printf("\t Curve : MBEDTLS_ECP_DP_SECP384R1\n"); break;
-    case MBEDTLS_ECP_DP_SECP521R1:   printf("\t Curve : MBEDTLS_ECP_DP_SECP521R1\n"); break;
-    case MBEDTLS_ECP_DP_BP256R1:     printf("\t Curve : MBEDTLS_ECP_DP_BP256R1\n"); break;
-    case MBEDTLS_ECP_DP_BP384R1:     printf("\t Curve : MBEDTLS_ECP_DP_BP384R1\n"); break;
-    case MBEDTLS_ECP_DP_BP512R1:     printf("\t Curve : MBEDTLS_ECP_DP_BP512R1\n"); break;
-    case MBEDTLS_ECP_DP_CURVE25519:  printf("\t Curve : MBEDTLS_ECP_DP_CURVE25519\n"); break;
-    case MBEDTLS_ECP_DP_SECP192K1:   printf("\t Curve : MBEDTLS_ECP_DP_SECP192K1\n"); break;
-    case MBEDTLS_ECP_DP_SECP224K1:   printf("\t Curve : MBEDTLS_ECP_DP_SECP224K1\n"); break;
-    case MBEDTLS_ECP_DP_SECP256K1:   printf("\t Curve : MBEDTLS_ECP_DP_SECP256K1\n"); break;
-    case MBEDTLS_ECP_DP_CURVE448:    printf("\t Curve : MBEDTLS_ECP_DP_CURVE448\n"); break;
-    }
+	switch(id) {
+	case MBEDTLS_ECP_DP_NONE:	printf("  . -> Curve: MBEDTLS_ECP_DP_NONE\n"); break;
+	case MBEDTLS_ECP_DP_SECP192R1:	printf("  . -> Curve: MBEDTLS_ECP_DP_SECP192R1\n"); break;
+	case MBEDTLS_ECP_DP_SECP224R1:	printf("  . -> Curve: MBEDTLS_ECP_DP_SECP224R1\n"); break;
+	case MBEDTLS_ECP_DP_SECP256R1:	printf("  . -> Curve: MBEDTLS_ECP_DP_SECP256R1\n"); break;
+	case MBEDTLS_ECP_DP_SECP384R1:	printf("  . -> Curve: MBEDTLS_ECP_DP_SECP384R1\n"); break;
+	case MBEDTLS_ECP_DP_SECP521R1:	printf("  . -> Curve: MBEDTLS_ECP_DP_SECP521R1\n"); break;
+	case MBEDTLS_ECP_DP_BP256R1:	printf("  . -> Curve: MBEDTLS_ECP_DP_BP256R1\n"); break;
+	case MBEDTLS_ECP_DP_BP384R1:	printf("  . -> Curve: MBEDTLS_ECP_DP_BP384R1\n"); break;
+	case MBEDTLS_ECP_DP_BP512R1:	printf("  . -> Curve: MBEDTLS_ECP_DP_BP512R1\n"); break;
+	case MBEDTLS_ECP_DP_CURVE25519:	printf("  . -> Curve: MBEDTLS_ECP_DP_CURVE25519\n"); break;
+	case MBEDTLS_ECP_DP_SECP192K1:	printf("  . -> Curve: MBEDTLS_ECP_DP_SECP192K1\n"); break;
+	case MBEDTLS_ECP_DP_SECP224K1:	printf("  . -> Curve: MBEDTLS_ECP_DP_SECP224K1\n"); break;
+	case MBEDTLS_ECP_DP_SECP256K1:	printf("  . -> Curve: MBEDTLS_ECP_DP_SECP256K1\n"); break;
+	case MBEDTLS_ECP_DP_CURVE448:	printf("  . -> Curve: MBEDTLS_ECP_DP_CURVE448\n"); break;
+	}
 }
 
 static void print_ecp_point(mbedtls_ecp_point pt) {
-	mbedtls_mpi_write_file("    X: ", &pt.X, 16, NULL);
-	mbedtls_mpi_write_file("    Y: ", &pt.Y, 16, NULL);
-	mbedtls_mpi_write_file("    Z: ", &pt.Z, 16, NULL);
+	mbedtls_mpi_write_file("      . -> X: ", &pt.X, 16, NULL);
+	mbedtls_mpi_write_file("      . -> Y: ", &pt.Y, 16, NULL);
+	mbedtls_mpi_write_file("      . -> Z: ", &pt.Z, 16, NULL);
 }
 
 static void print_ecp_group(mbedtls_ecp_group grp) {
-	printf("Information about group:\n");
-    	print_ecp_group_id_name(grp.id);
-	mbedtls_mpi_write_file("grp.P: ", &grp.P, 16, NULL);
-	mbedtls_mpi_write_file("grp.A: ", &grp.A, 16, NULL);
-	mbedtls_mpi_write_file("grp.B: ", &grp.B, 16, NULL);
-	printf("grp.G:\n");
+	printf("  . Information about group:\n");
+	print_ecp_group_id_name(grp.id);
+	mbedtls_mpi_write_file("  . -> grp.P: ", &grp.P, 16, NULL);
+	mbedtls_mpi_write_file("  . -> grp.A: ", &grp.A, 16, NULL);
+	mbedtls_mpi_write_file("  . -> grp.B: ", &grp.B, 16, NULL);
+	printf("  . -> grp.G:\n");
 	print_ecp_point(grp.G);
-	mbedtls_mpi_write_file("grp.N: ", &grp.N, 16, NULL);
-	printf("grp.pbits: %zu\n", grp.pbits);
-	printf("grp.nbits: %zu\n", grp.nbits);
-	printf("grp.h: %d\n", grp.h);
+	mbedtls_mpi_write_file("  . -> grp.N: ", &grp.N, 16, NULL);
+	printf("  . -> grp.pbits: %zu\n", grp.pbits);
+	printf("  . -> grp.nbits: %zu\n", grp.nbits);
+	printf("  . -> grp.h: %d\n", grp.h);
 }
 
 static void print_buffer(char *title, unsigned char *ptr, size_t len) {
@@ -157,6 +157,13 @@ void print_progress(char *msg) {
 #endif
 }
 
+void print_ret_err(char *func_name, int ret) {
+#ifdef DEBUG
+	 printf("  . failed\n\n\t ! %s returned %d\n", func_name, ret ), fflush(stdout);
+#else
+	((void)(func_name)), ((void)(ret));
+#endif
+}
 /*
  * REad write files
  */
@@ -260,7 +267,7 @@ int generate_ec_keypair( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *c
 	ret = mbedtls_ecdh_gen_public( &ctx->grp, &ctx->d, &ctx->Q,
 				       mbedtls_ctr_drbg_random, ctr_drbg_ctx );
 	if( ret != 0 ) {
-		printf( " failed!\n\n\t . mbedtls_ecdh_gen_public() returned %d\n", ret ), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_ecdh_gen_public()", ret);
 		return ret;
 	}
 	/*
@@ -268,7 +275,7 @@ int generate_ec_keypair( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *c
 	 */
 	ret = mbedtls_mpi_lset( &ctx->Q.Z, 1 );
 	if( ret != 0 ) {
-		printf( " failed\n\n\t  . mbedtls_mpi_lset returned %d\n", ret ), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_mpi_lset()", ret);
 	}
 
 	return ret;
@@ -315,178 +322,164 @@ int ecdh_init_grp(_mbedtls_ecdh_context *ctx) {
 	int curve = MBEDTLS_ECP_DP_SECP256R1;
 	int ret = 1;
 
-	/*
-	 * Initialize required contexts.
-	 */
 	_mbedtls_ecdh_context_init( ctx );
 
-	/*
-	 * Load the group information.
-	 */
-	print_progress(  (char *)"  . Load the group information for the ECC..." );
+	print_progress( (char *)"  . Load the group information for the ECC..." );
 	ret = mbedtls_ecp_group_load( &ctx->grp, curve );
 	if( ret != 0 ) {
-		printf( " failed!\n\n\t . mbedtls_ecp_group_load() returned %d\n", ret ), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_ecp_group_load()", ret);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 #ifdef DEBUG
-	printf("===========================================================================\n");
-	print_ecp_group(ctx->grp);
+	// print_ecp_group(ctx->grp);
 #endif
 	return 0;
 }
 
 int ecdh_init_Q( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx,
-                 char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname) {
+		 char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname) {
 	int ret;
 	/*
 	 * Read client's key material from persisted file;
 	 */
-	print_progress(  (char *)"  . Try to read (d, Q) from persisted file..." );
+	print_progress( (char *)"  . Try to read (d, Q) from persisted file..." );
 	ret = read_ec_keypair( &ctx->d, &ctx->Q, d_fname, QX_fname, QY_fname, QZ_fname);
 	if( ret != 0 ) {
 			/*
 			 * Generate client's public key pair;
 			 */
-			print_progress(  (char *)"  . Try to read (d, Q) from persisted file..." );
-			print_progress(  (char *)"  . Generating (d,Q)..." );
+			print_progress( (char *)"  . Try to read (d, Q) from persisted file..." );
+			print_progress( (char *)"  . Generating (d,Q)..." );
 			ret = generate_ec_keypair( ctx, ctr_drbg_ctx );
 			if( ret != 0 ) {
 				return ret;
 			}
-			print_progress(  (char *)"  . OK!\n");
+			print_progress( (char *)"  . -> OK!\n");
 
 		#ifdef PERSIST_CLIENT_KEY_MATERIAL
-			printf("Persist client key...\n");
+			print_progress((char *)"Persist client key...\n");
 			write_ec_keypair(&ctx->d, &ctx->Q, d_fname, QX_fname, QY_fname, QZ_fname);
+			print_progress( (char *)"  . -> OK!\n");
 		#endif // PERSIST_CLIENT_KEY_MATERIAL
 
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
-#ifdef DEBUG
-	printf("===========================================================================\n");
-	mbedtls_mpi_write_file("ctx->d: ", &ctx->d, 16, NULL);
-	mbedtls_printf("ctx->Q:\n");
-	print_ecp_point(ctx->Q);
-#endif
 	return 0;
 }
 
 int ecdh_init_Qp( _mbedtls_ecdh_context *ctx, char *QX_fname, char *QY_fname, char *QZ_fname) {
 	/*
-	 * Load the servers public key
+	 * Load the peers public key
 	 */
 	int ret = 1;
-	print_progress(  (char *)"  . Load the servers public key into context..." );
+	print_progress( (char *)"  . Load the peers public key into context..." );
 	ret = read_ec_keypair( NULL, &ctx->Qp, NULL, QX_fname, QY_fname, QZ_fname );
 	if( ret != 0 ) {
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 #ifdef DEBUG
 	printf("===========================================================================\n");
-	printf("ctx->Qp:\n");
+	printf("  . -> ctx->Qp:\n");
 	print_ecp_point(ctx->Qp);
 #endif
 	return ret;
 }
 
-int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mode,
-                   mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
+int ec_operation( unsigned char *in_aes_key, unsigned char *out_aes_key, int mode,
+		  mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
 
 	_mbedtls_ecdh_context ctx;
 	int ret = 1;
 
-	print_progress(  (char *)"  . ECDH Init... STARTED!\n" );
+	print_progress( (char *)"===========================================================================\n");
+	print_progress( (char *)"  . ECDH Init... STARTED!\n" );
 	ret = ecdh_init_grp(&ctx);
 	if( ret != 0 ) {
-		printf( " failed!\n\n\t . ecdh_init_grp() returned %d\n", ret ), fflush(stdout);
+		print_ret_err( (char *)"ecdh_init_grp()", ret);
 		goto cleanup;
 	}
-	print_progress(  (char *)"  . ECDH Init... OK!\n" );
+	print_progress( (char *)"  . ECDH Init... COMPLETED!\n" );
+	print_progress( (char *)"===========================================================================\n");
 
+	print_progress( (char *)"  . ECDH Load Q and Qp... STARTED!\n" );
 	if(mode == MODE_ENCRYPT) {
-		print_progress(  (char *)"  . ECDH Load Q... STARTED!\n" );
-
 		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
-		                  (char *)"cli_d.bin", (char *)"cli_QX.bin",
-		                  (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
+				   (char *)"cli_d.bin", (char *)"cli_QX.bin",
+				   (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
 
 		if( ret != 0 ) {
-			printf( " failed!\n\n\t . ecdh_init_Q() returned %d\n", ret ), fflush(stdout);
+			print_ret_err( (char *)"ecdh_init_Q()", ret);
 			goto cleanup;
 		}
-		print_progress(  (char *)"  . ECDH Load Q... OK!\n" );
 
 		/*
 		 * Load the servers public key
 		 */
-		print_progress(  (char *)"  . Load the servers public key into context..." );
 		ret = read_ec_keypair( NULL, &ctx.Qp, NULL, (char *)"srv_QX.bin", (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
 		if( ret != 0 ) {
 			goto cleanup;
 		}
-		print_progress(  (char *)"  . OK!\n");
 	}
 	else {
-		print_progress(  (char *)"  . ECDH Load Q... STARTED!\n" );
 		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
-		                   (char *)"srv_d.bin", (char *)"srv_QX.bin",
-		                   (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
+				   (char *)"srv_d.bin", (char *)"srv_QX.bin",
+				   (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
 
 		if( ret != 0 ) {
-			printf( " failed!\n\n\t . ecdh_init_Q() returned %d\n", ret ), fflush(stdout);
+			print_ret_err( (char *)"ecdh_init_Q()", ret);
 			goto cleanup;
 		}
-		print_progress(  (char *)"  . ECDH Load Q... OK!\n" );
+
 		/*
 		 * Load the Client's public key
 		 */
-		print_progress(  (char *)"  . Load the Client's public key into context..." );
 		ret = read_ec_keypair( NULL, &ctx.Qp, NULL, (char *)"cli_QX.bin", (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
 		if( ret != 0 ) {
 			goto cleanup;
 		}
-		print_progress(  (char *)"  . OK!\n");
-
 	}
-	print_progress(  (char *)"  . ECDH Load Q... OK!\n" );
 
 #ifdef DEBUG
-	printf("===========================================================================\n");
-	printf("ctx.Qp:\n");
+	mbedtls_mpi_write_file("  . -> ctx.d: ", &ctx.d, 16, NULL);
+	printf("  . -> ctx.Q:\n");
+	print_ecp_point(ctx.Q);
+
+	printf("  . -> ctx.Qp:\n");
 	print_ecp_point(ctx.Qp);
 #endif
+	print_progress( (char *)"  . ECDH Load Q and Qp... COMPLETED!\n" );
 
-	print_progress(  (char *)"  . Compute the shared secret..." );
+	print_progress( (char *)"===========================================================================\n");
+	print_progress( (char *)"  . Compute the shared secret..." );
 	ret = mbedtls_ecdh_compute_shared( &ctx.grp, &ctx.z, &ctx.Qp, &ctx.d,
 					   mbedtls_ctr_drbg_random, ctr_drbg_ctx );
 	if( ret != 0 ) {
-		printf( " failed\n  ! compute_shared_key() returned %d\n", ret ), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_ecdh_compute_shared()", ret);
 		goto cleanup;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 #ifdef DEBUG
-	printf("===========================================================================\n");
-	mbedtls_mpi_write_file("ctx.z: ", &ctx.z, 16, NULL);
-	printf("Length of ctx.z in bits: %zu\n", mbedtls_mpi_bitlen(&ctx.z));
+	mbedtls_mpi_write_file("  . -> ctx.z : ", &ctx.z, 16, NULL);
+	printf("  . -> len(z): %zu bits\n", mbedtls_mpi_bitlen(&ctx.z));
 #endif
 
 	unsigned char *shared_aes_key = (unsigned char*) calloc(32,1);
 
 	ret = mbedtls_mpi_write_binary( &ctx.z, shared_aes_key, 32 );
 	if( ret != 0 ) {
-		printf( " Failed\n  ! mbedtls_mpi_write_binary returned %d\n", ret );
+		print_ret_err( (char *)"mbedtls_mpi_write_binary()", ret);
 		goto cleanup;
 	}
 
 #ifdef DEBUG
-	print_buffer( (char *)"  . Shared AES Key before HKDF : ", shared_aes_key, 32 );
+	print_progress( (char *)"===========================================================================\n");
+	print_buffer( (char *)"  . -> Shared AES Key before HKDF : ", shared_aes_key, 32 );
 #endif
 	/*
 	 * Use HKDF to increase the entropy of random AES Key material.
@@ -494,21 +487,17 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 	print_progress( (char *)"  . Use HKDF over shared AES key to add more entropy..." );
 	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, shared_aes_key, 32, shared_aes_key );
 	if( ret != 0 ) {
-		printf("  . mbedtls_hkdf_extract() failed, ret = %d\n", ret ), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_hkdf_extract()", ret);
 		free( shared_aes_key );
 		goto cleanup;
 	}
-	print_progress(  (char *)"  . OK!\n");
-
-#ifdef DEBUG
-	print_buffer( (char *)"  . Shared AES Key after HKDF :  ", shared_aes_key, 32 );
-#endif
+	print_progress( (char *)"  . -> OK!\n");
 
 #ifdef DISABLE_VERIFICATION
 	print_progress( (char *)"  . Print the length of final shared AES Key.\n");
 	ret = mbedtls_mpi_read_binary( &ctx.z, shared_aes_key, 32 );
 	if( ret != 0 ) {
-		printf( " Failed\n  ! mbedtls_mpi_read_binary returned %d\n", ret );
+		print_ret_err( (char *)"mbedtls_mpi_read_binary()", ret);
 		goto cleanup;
 	}
 
@@ -517,12 +506,12 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 	printf("===========================================================================\n");
 #endif
 
-	print_progress( (char *)"  . Encrypt the Ephemeral AES key with shared AES Key.  OK!\n");
+	print_progress( (char *)"  . Encrypt the Ephemeral AES key with shared AES Key..  . -> OK!\n");
 	for( int i = 0; i < 32; i++ )
 		out_aes_key[i] = (unsigned char)( in_aes_key[i] ^ shared_aes_key[i] );
 
 #ifdef DEBUG
-	print_buffer( (char *)"Encrypted AES Key: ", out_aes_key, 32);
+	print_buffer( (char *)"  . -> Encrypted AES Key: ", out_aes_key, 32);
 #endif
 cleanup:
 	_mbedtls_ecdh_context_free( &ctx );
@@ -543,10 +532,10 @@ int read_aes_key_material( aes_key_t *aes_key ) {
 	}
 	else if( keylen == 16 && keylen == 24 && keylen == 32) {
 		aes_key->keylen_bits = keylen * 8;
-  	} else {
+	} else {
 		printf("  . fread of AES Key failed\n");
 		return -1;
-  	}
+	}
 
 	return 0;
 }
@@ -570,21 +559,21 @@ int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context
 	print_progress( (char *)"  . Generate random data for AES Key material... ");
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->key, keylen );
 	if( ret != 0 ) {
-		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_ctr_drbg_random()", ret);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
-	print_progress( (char *)"  . Generate random data for AES IV");
+	print_progress( (char *)"  . Generate random data for AES IV... ");
 	ret = mbedtls_ctr_drbg_random( ctr_drbg_ctx, aes_key->IV, 12 );
 	if( ret != 0 ) {
-		printf("  . mbedtls_ctr_drbg_random() failed, ret = %d\n", ret), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_ctr_drbg_random()", ret);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 #ifdef DEBUG
-	print_buffer( (char *)"  . AES Key before HKDF : ", aes_key->key, keylen );
+	print_buffer( (char *)"  . -> AES Key before HKDF : ", aes_key->key, keylen );
 #endif
 	/*
 	 * Use HKDF to increase the entropy of random AES Key material.
@@ -592,16 +581,11 @@ int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context
 	print_progress( (char *)"  . Use HKDF over random AES key to add more entropy...");
 	ret = mbedtls_hkdf_extract(sha_ctx->md_info, NULL, 0, aes_key->key, keylen, aes_key->key);
 	if( ret != 0 ) {
-		printf("  . mbedtls_hkdf_extract() failed, ret = %d\n", ret ), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_hkdf_extract()", ret);
 		free(aes_key->key), free(aes_key->IV);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
-
-#ifdef DEBUG
-	print_buffer( (char *)"  . AES Key after HKDF :  ", aes_key->key, keylen );
-	print_buffer( (char *)"  . AES IV : ", aes_key->IV, 12 );
-#endif
+	print_progress( (char *)"  . -> OK!\n");
 
 	aes_key->keylen_bits = keylen * 8;
 
@@ -609,29 +593,22 @@ int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context
 }
 
 int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *fin, FILE *fout,
-                        off_t filesize )  {
+			off_t filesize )  {
 
 	int ret = 1;
-	/*
-	 * Append the IV at the beginning of the output.
-	 */
-	if( fwrite( aes_key->IV, 1, 12, fout ) != 12 ) {
-		fprintf( stderr, "fwrite(%d bytes) failed\n", 12 );
-		return -1;
-	}
 
-	print_progress( (char *)"  . Set GCM Key... ");
+	print_progress( (char *)"  . Set GCM Key...          ");
 	ret = mbedtls_gcm_setkey( gcm_ctx, MBEDTLS_CIPHER_ID_AES, aes_key->key, 256);
 	if( ret != 0 ) {
-		printf( "  . failed!\n\n\t . mbedtls_gcm_setkey() returned %d", ret), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_gcm_setkey()", ret);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 	/*
 	 * Encrypt and write the ciphertext.
 	 */
-	print_progress( (char *)"  . Start GCM Encryption...");
+	print_progress( (char *)"  . Start GCM Encryption... ");
 	unsigned char buffer[1024];
 	mbedtls_gcm_starts( gcm_ctx, MBEDTLS_GCM_ENCRYPT, aes_key->IV, 12, NULL, 0);
 
@@ -645,7 +622,7 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 
 		ret = mbedtls_gcm_update( gcm_ctx, n, buffer, buffer);
 		if( ret != 0 ) {
-			printf( "  . failed!\n\n\t . mbedtls_gcm_update() returned %d", ret), fflush(stdout);
+			print_ret_err( (char *)"mbedtls_gcm_update()", ret);
 			return ret;
 		}
 
@@ -654,7 +631,7 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 			return -1;
 		}
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 	/*
 	 * Finally write the HMAC.
@@ -662,10 +639,10 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 	print_progress( (char *)"  . Finish GCM Encryption...");
 	ret = mbedtls_gcm_finish( gcm_ctx, buffer, 16);
 	if( ret != 0 ) {
-		printf( "  . failed!\n\n\t . mbedtls_gcm_finish() returned %d", ret), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_gcm_finish()", ret);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 	if( fwrite( buffer, 1, 16, fout ) != 16 ) {
 		mbedtls_fprintf( stderr, "fwrite(%d bytes) failed\n", 16 );
@@ -676,7 +653,7 @@ int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 }
 
 int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *fin, FILE *fout,
-                        off_t filesize )  {
+			off_t filesize ) {
 
 	int ret = 1;
 	/*
@@ -693,36 +670,28 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 	}
 
 	/*
-	* Subtract the IV + GCM Digest length.
-	*/
+	 * Subtract the IV + GCM Digest length.
+	 */
 	filesize -= ( 12 + 16 );
 
-	/*
-	* Read the IV and original filesize modulo 16.
-	*/
-	if( fread( aes_key->IV, 1, 12, fin ) != 12 ) {
-		printf( "  . Failed!\n\n\t . fread(12 bytes) of IV failed\n" );
-		return -1;
-	}
-
-	print_progress( (char *)"  . Set GCM Key... ");
+	print_progress( (char *)"  . Set GCM Key...          ");
 	ret = mbedtls_gcm_setkey( gcm_ctx, MBEDTLS_CIPHER_ID_AES, aes_key->key, 256);
 	if( ret != 0 ) {
-		printf( "  . Failed!\n\n\t . mbedtls_gcm_setkey() returned %d", ret), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_gcm_setkey()", ret);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 	/*
 	 * Encrypt and write the ciphertext.
 	 */
-	print_progress( (char *)"  . Start GCM Decryption...");
+	print_progress( (char *)"  . Start GCM Decryption... ");
 	unsigned char out_buff[1024];
 	unsigned char in_buff[32];
 
 	ret = mbedtls_gcm_starts( gcm_ctx, MBEDTLS_GCM_DECRYPT, aes_key->IV, 12, NULL, 0);
 	if( ret != 0 ) {
-		printf( "  . Failed!\n\n\t . mbedtls_gcm_starts() returned %d", ret), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_gcm_starts()", ret);
 		return ret;
 	}
 
@@ -736,7 +705,7 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 
 		ret = mbedtls_gcm_update( gcm_ctx, n, in_buff, out_buff);
 		if( ret != 0 ) {
-			printf( "  . Failed!\n\n\t . mbedtls_gcm_update() returned %d", ret), fflush(stdout);
+			print_ret_err( (char *)"mbedtls_gcm_update()", ret);
 			return ret;
 		}
 
@@ -745,7 +714,7 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 			return -1;
 		}
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 	/*
 	 * Finally process the HMAC.
@@ -758,10 +727,10 @@ int do_aes_gcm_decrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *
 	print_progress( (char *)"  . Finish GCM Decryption...");
 	ret = mbedtls_gcm_finish( gcm_ctx, out_buff, 16);
 	if( ret != 0 ) {
-		printf( "   . Failed!\n\n\t . mbedtls_gcm_finish() returned %d", ret), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_gcm_finish()", ret);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 	/* Use constant-time buffer comparison */
 	unsigned char diff = 0;
@@ -787,15 +756,6 @@ int main( int argc, char *argv[] ) {
 	mbedtls_md_context_t sha_ctx;
 	mbedtls_gcm_context gcm_ctx;
 
-	print_progress( (char *)"Initialize entropy, ctr_drbg, sha and gcm contexts...");
-
-	aes_key_init( &aes_key, 32, 12 );
-	mbedtls_entropy_init( &entropy_ctx );
-	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
-	mbedtls_md_init( &sha_ctx );
-	mbedtls_gcm_init( &gcm_ctx );
-	print_progress(  (char *)"  . OK!\n");
-
 	off_t filesize;
 
 	unsigned char encrypted_aes_key[32];
@@ -807,6 +767,9 @@ int main( int argc, char *argv[] ) {
 
 	int mode = atoi( argv[1] );
 
+	print_progress( (char *)"===========================================================================\n");
+	print_progress( (char *)"\t\t STAGE 0 - Process input arguments\n");
+	print_progress( (char *)"===========================================================================\n");
 	print_progress( (char *)"  . Do file related pre-processing..." );
 	FILE *fin= NULL, *fout = NULL;
 	if( ( fin = fopen( argv[2], "rb" ) ) == NULL ) {
@@ -829,24 +792,35 @@ int main( int argc, char *argv[] ) {
 		goto exit;
 	}
 
-	print_progress(  (char *)"  . OK!\n");
-
+	print_progress( (char *)"  . -> OK!\n");
 #ifdef DEBUG
-	printf("  . Input filesize = %lld \n", filesize);
+	printf("  . -> Input filesize = %lld \n", filesize);
 #endif
+	print_progress( (char *)"===========================================================================\n");
+	print_progress( (char *)"\t\t STAGE 1 - Initialize contexts and seed RNG\n");
+	print_progress( (char *)"===========================================================================\n");
+
+	print_progress( (char *)"  . Initialize entropy, ctr_drbg, sha and gcm contexts...");
+
+	aes_key_init( &aes_key, 32, 12 );
+	mbedtls_entropy_init( &entropy_ctx );
+	mbedtls_ctr_drbg_init( &ctr_drbg_ctx );
+	mbedtls_md_init( &sha_ctx );
+	mbedtls_gcm_init( &gcm_ctx );
+	print_progress( (char *)"  . -> OK!\n");
+
 	/*
 	 * Seed the random number generator.
 	 */
 	print_progress( (char *)"  . Seeding the random number generator..." );
 	ret = mbedtls_ctr_drbg_seed( &ctr_drbg_ctx, mbedtls_entropy_func, &entropy_ctx, NULL, 0);
-	                             // (const unsigned char *) "RANDOM_GEN", 10 );
 	if( ret != 0 ) {
-		printf( "  . Failed!\n\n\t . mbedtls_ctr_drbg_seed() returned %d", ret), fflush(stdout);
+		print_ret_err( (char *)"mbedtls_ctr_drbg_seed()", ret);
 		goto exit;
 	}
 
 	mbedtls_ctr_drbg_set_prediction_resistance( &ctr_drbg_ctx, MBEDTLS_CTR_DRBG_PR_OFF );
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 	/*
 	 * Setup SHA-256 as MD for HKDF.
@@ -854,16 +828,20 @@ int main( int argc, char *argv[] ) {
 	print_progress( (char *)"  . Setup SHA-256 MD for HKDF...");
 	ret = mbedtls_md_setup( &sha_ctx, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 1 );
 	if( ret != 0 ) {
-		printf( "  . Failed!\n\n\t . mbedtls_md_setup() returned -0x%04x\n", -ret );
+		print_ret_err( (char *)"mbedtls_md_setup()", ret);
 		return ret;
 	}
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
 
 	if( mode == MODE_ENCRYPT ) {
 		/*
 		 * Initialize the AES Key and IV.
 		 */
-		print_progress( (char *)"  . Get the AES KEY and IV... STARTED!");
+		print_progress( (char *)"===========================================================================\n");
+		print_progress( (char *)"\t\t STAGE 2 - Get AES Key and IV\n");
+		print_progress( (char *)"===========================================================================\n");
+
+		print_progress( (char *)"  . Get the AES KEY and IV... STARTED!\n");
 
 #ifdef USE_PERSISTED_AES_KEY_MATERIAL
 
@@ -872,7 +850,7 @@ int main( int argc, char *argv[] ) {
 		if( ret != 0 ) {
 			goto exit;
 		}
-		print_progress(  (char *)"  . OK!\n");
+		print_progress( (char *)"  . -> OK!\n");
 
 #else // USE_PERSISTED_AES_KEY_MATERIAL
 
@@ -881,26 +859,33 @@ int main( int argc, char *argv[] ) {
 		if( ret != 0 ) {
 			goto exit;
 		}
-		print_progress( (char *)"  . Generate ephemeral AES Key and IV... OK!\n" );
+		print_progress( (char *)"  . Generate ephemeral AES Key and IV...  . -> OK!\n" );
 
 #ifdef PERSIST_AES_KEY_MATERIAL
 
 		print_progress( (char *)"  . Write AES Key material to persistent storage..." );
 		ret = persist_aes_key_material( &aes_key, (char *)"aes_key.bin", (char *)"aes_iv.bin");
 		if( ret != 0 ) {
-			printf("  . Failed\n\n\t . persist_aes_key_material() returned %d", ret);
+			print_ret_err( (char *)"persist_aes_key_material()", ret);
+			goto exit;
 		}
-		print_progress(  (char *)"  . OK!\n");
+		print_progress( (char *)"  . -> OK!\n");
 
 #endif // PERSIST_AES_KEY_MATERIAL
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
+
 #ifdef DEBUG
-		print_buffer( (char *)"  . Final AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
-		print_buffer( (char *)"  . Final AES IV : ", aes_key.IV, 12 );
+		print_buffer( (char *)"  . -> Final AES Key: ", aes_key.key, aes_key.keylen_bits/8 );
+		print_buffer( (char *)"  . -> Final AES IV : ", aes_key.IV, 12 );
 #endif
 
-		print_progress( (char *)"  . Get the AES KEY and IV... OK!");
+		print_progress( (char *)"  . Get the AES KEY and IV... COMPLETED!\n");
+		print_progress( (char *)"===========================================================================\n");
+
+		print_progress( (char *)"===========================================================================\n");
+		print_progress( (char *)"\t\t STAGE 3 - Encrypt the AES Key to server\n");
+		print_progress( (char *)"===========================================================================\n");
 
 		print_progress( (char *)"  . Encrypt AES key to Server... STARTED!\n");
 		ret = ec_operation( aes_key.key, &encrypted_aes_key[0], MODE_ENCRYPT, &ctr_drbg_ctx, &sha_ctx );
@@ -908,7 +893,8 @@ int main( int argc, char *argv[] ) {
 			printf("  . Encrypt AES key to Server... Failed\n  . enc_key_to_server() return %d", ret );
 			goto exit;
 		}
-		print_progress( (char *)"  . Encrypt AES key to Server... OK!\n");
+		print_progress( (char *)"  . Encrypt AES key to Server... COMPLETED!\n");
+
 		/*
 		 * Write encrypted AES Key to output file.
 		 */
@@ -916,59 +902,92 @@ int main( int argc, char *argv[] ) {
 			fprintf( stderr, "fwrite(%d bytes) of Encrypted AES key failed\n", 32 );
 			goto exit;
 		}
+
+		if( fwrite( aes_key.IV, 1, 12, fout ) != 12 ) {
+			fprintf( stderr, "fwrite(%d bytes) of AES IV failed\n", 32 );
+			goto exit;
+		}
+
 		/*
 		 * Encrypt the payload data using AES GCM
 		 */
+		print_progress( (char *)"===========================================================================\n");
+		print_progress( (char *)"\t\t STAGE 4 - Encrypt the payload using AES key\n");
+		print_progress( (char *)"===========================================================================\n");
+
 		print_progress( (char *)"  . Encrypt the payload using AES GCM... STARTED!\n");
 		ret = do_aes_gcm_encrypt ( &gcm_ctx, &aes_key, fin, fout, filesize);
 		if( ret != 0 ) {
-			printf("  . Failed!\n\n\t . Encrypt the payload using AES GCM... FAILED!\n  . do_aes_gcm_encrypt() returned %d", ret), fflush(stdout);
+			print_ret_err( (char *)"do_aes_gcm_encrypt()", ret);
 			goto exit;
 		}
-		print_progress( (char *)"  . Encrypt the payload using AES GCM... OK!\n");
+		print_progress( (char *)"  . Encrypt the payload using AES GCM...  . COMPLETED!\n");
 	}
 	else if ( mode == MODE_DECRYPT ) {
 		/*
 		 * Decrypt the payload data using AES GCM
 		 */
-		print_progress( (char *)"  . Read encrypted AES Key from file... ");
+		print_progress( (char *)"===========================================================================\n");
+		print_progress( (char *)"\t\t STAGE 2 - Get AES Key and IV\n");
+		print_progress( (char *)"===========================================================================\n");
+
+		print_progress( (char *)"  . Read encrypted AES Key and IV from file... ");
 		ret = read_fbuffer( NULL, fin, &encrypted_aes_key[0], 32);
 		if( ret != 0) {
 			printf("  . failed to read 32 bytes\n");
 			goto exit;
 		}
-		print_progress(  (char *)"  . OK!\n");
 
-#ifdef DEBUG
-		print_buffer( (char *)"  . Encrypted AES Key: ", &encrypted_aes_key[0], 32);
-#endif
-
-		print_progress( (char *)"  .Decrypt the AES Key at server... STARTED!\n");
-		ret = ec_operation( &encrypted_aes_key[0], aes_key.key, MODE_DECRYPT, &ctr_drbg_ctx, &sha_ctx );
-		if( ret != 0 ) {
-			printf("  . Encrypt AES key to Server... Failed\n  . enc_key_to_server() return %d", ret );
+		ret = read_fbuffer( NULL, fin, aes_key.IV, 12);
+		if( ret != 0) {
+			printf("  . failed to read 12 bytes\n");
 			goto exit;
 		}
-		print_progress( (char *)"  . Decrypt AES key to Server... OK!\n");
+		print_progress( (char *)"  . -> OK!\n");
+
+#ifdef DEBUG
+		print_buffer( (char *)"  . -> Encrypted AES Key: ", &encrypted_aes_key[0], 32);
+		print_buffer( (char *)"  . -> AES IV: ", aes_key.IV, 12);
+#endif
+
+		print_progress( (char *)"===========================================================================\n");
+		print_progress( (char *)"\t\t STAGE 3 - Decrypt the AES Key at server\n");
+		print_progress( (char *)"===========================================================================\n");
+
+		print_progress( (char *)"  . Decrypt the AES Key at server... STARTED!\n");
+		ret = ec_operation( &encrypted_aes_key[0], aes_key.key, MODE_DECRYPT, &ctr_drbg_ctx, &sha_ctx );
+		if( ret != 0 ) {
+			print_ret_err( (char *)"ec_operation()", ret);
+			goto exit;
+		}
+		print_progress( (char *)"  . Decrypt AES key to Server...  . -> OK!\n");
+
+		print_progress( (char *)"===========================================================================\n");
+		print_progress( (char *)"\t\t STAGE 4 - Decrypt the payload using AES key\n");
+		print_progress( (char *)"===========================================================================\n");
 
 		print_progress( (char *)"  . Decrypt the payload using AES GCM... STARTED!\n");
-
 		ret = do_aes_gcm_decrypt ( &gcm_ctx, &aes_key, fin, fout, filesize - 32);
 
 		if( ret != 0 ) {
-			printf("  . Failed!\n\n\t . Decrypt the payload using AES GCM... FAILED!\n  . do_aes_gcm_decrypt() returned %d", ret), fflush(stdout);
+			print_ret_err( (char *)"do_aes_gcm_decrypt()", ret);
 			goto exit;
 		}
-		print_progress( (char *)"  . Decrypt the payload using AES GCM... OK!\n");
+		print_progress( (char *)"  . Decrypt the payload using AES GCM... COMPLETED!\n");
 	}
 
 exit:
+	print_progress( (char *)"===========================================================================\n");
+	print_progress( (char *)"\t\t STAGE 5 - Cleanup\n");
+	print_progress( (char *)"===========================================================================\n");
+
 	print_progress( (char *)"Free entropy, ctr_drbg, sha, gcm and aes_key contexts...");
 	mbedtls_ctr_drbg_free( &ctr_drbg_ctx );
 	mbedtls_entropy_free( &entropy_ctx );
 	mbedtls_gcm_free( &gcm_ctx );
 	aes_free( &aes_key );
-	print_progress(  (char *)"  . OK!\n");
+	print_progress( (char *)"  . -> OK!\n");
+	print_progress( (char *)"===========================================================================\n\n\n");
 
 	return ret;
 }
