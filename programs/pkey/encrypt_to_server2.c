@@ -223,7 +223,7 @@ int read_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q, char *d_fname, char *
 	if( QZ_fname )
 		CHECK_AND_RET( read_hexmpi_from_file( &Q->Z, QZ_fname) );
 
-	return 0;
+	return ret;
 }
 
 int write_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q, char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname ) {
