@@ -408,15 +408,11 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 
 	if(mode == MODE_ENCRYPT) {
 		print_progress(  (char *)"  . ECDH Load Q... STARTED!\n" );
-#ifdef USE_PERSISTED_CLIENT_KEY_MATERIAL
-		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
-		             (char *)"cli_d.bin", (char *)"cli_QX.bin",
-		             (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
-#else
+
 		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
 		                  (char *)"cli_d.bin", (char *)"cli_QX.bin",
 		                  (char *)"cli_QY.bin", (char *)"cli_QZ.bin" );
-#endif
+
 		if( ret != 0 ) {
 			printf( " failed!\n\n\t . ecdh_init_Q() returned %d\n", ret ), fflush(stdout);
 			goto cleanup;
@@ -434,16 +430,11 @@ int ec_operation ( unsigned char *in_aes_key, unsigned char *out_aes_key, int mo
 		print_progress(  (char *)"  . OK!\n");
 	}
 	else {
-#ifdef USE_PERSISTED_SERVER_KEY_MATERIAL
 		print_progress(  (char *)"  . ECDH Load Q... STARTED!\n" );
 		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
 		                   (char *)"srv_d.bin", (char *)"srv_QX.bin",
 		                   (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
-#else
-		ret = ecdh_init_Q( &ctx, ctr_drbg_ctx,
-		                   (char *)"srv_d.bin", (char *)"srv_QX.bin",
-		                   (char *)"srv_QY.bin", (char *)"srv_QZ.bin" );
-#endif
+
 		if( ret != 0 ) {
 			printf( " failed!\n\n\t . ecdh_init_Q() returned %d\n", ret ), fflush(stdout);
 			goto cleanup;
