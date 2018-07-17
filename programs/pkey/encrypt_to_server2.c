@@ -151,6 +151,73 @@ void print_progress(char *msg) {
 	printf("%s", msg), fflush( stdout );
 }
 
+/*
+ * REad write files
+ */
+int read_fbuffer( char *fname, FILE *fp, unsigned char *ptr, size_t len) {
+	FILE *f = fp;
+
+	int close_file = 1;
+	if ( f )
+		close_file = 0;
+
+	if( !f && (f = fopen(fname, "rb")) == NULL ){
+		printf(" . fopen(%s, rb) failed\n", fname);
+		return -1;
+	}
+
+	size_t ret = fread( ptr, 1, len, f );
+	if( close_file )
+		fclose( f );
+
+	if( ret != len ) {
+		printf("  . fread(%s) read %zd instead of %zd from failed\n", fname, ret, len);
+		return ret;
+	}
+
+	return 0;
+}
+
+int read_hexmpi_from_file( mbedtls_mpi *mp, char *fname) {
+	FILE *f = NULL;
+
+	if( ( f = fopen( fname, "rb" ) ) == NULL ) {
+		printf(" failed\n\n\t ! fopen(%s,rb) failed\n", fname);
+		return -1;
+	}
+
+	int ret = mbedtls_mpi_read_file( mp, 16, f );
+	fclose( f );
+
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_read_file( %s ) returned %d\n",fname, ret );
+		fflush(stdout);
+		return ret;
+	}
+
+	return 0;
+}
+
+int write_hexmpi_from_file( mbedtls_mpi *mp, char *fname) {
+	FILE *f = NULL;
+
+	if( ( f = fopen( fname, "wb" ) ) == NULL ) {
+		printf(" failed\n\n\t ! fopen(%s,wb) failed\n", fname);
+		return -1;
+	}
+
+	int ret = mbedtls_mpi_write_file( NULL, mp, 16, f );
+	fclose( f );
+
+	if( ret != 0 ) {
+		printf( " failed\n\n\t ! mbedtls_mpi_write_file( %s ) returned %d\n",fname, ret );
+		fflush(stdout);
+		return ret;
+	}
+
+	return 0;
+}
+
 int persist_aes_key_material(aes_key_t *aes_key, char *key_fname, char *iv_fname) {
 	FILE *f = NULL;
 
@@ -199,46 +266,6 @@ int generate_ec_keypair( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *c
 	return ret;
 }
 
-int read_hexmpi_from_file( mbedtls_mpi *mp, char *fname) {
-	FILE *f = NULL;
-
-	if( ( f = fopen( fname, "rb" ) ) == NULL ) {
-		printf(" failed\n\n\t ! fopen(%s,rb) failed\n", fname);
-		return -1;
-	}
-
-	int ret = mbedtls_mpi_read_file( mp, 16, f );
-	fclose( f );
-
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_read_file( %s ) returned %d\n",fname, ret );
-		fflush(stdout);
-		return ret;
-	}
-
-	return 0;
-}
-
-int write_hexmpi_from_file( mbedtls_mpi *mp, char *fname) {
-	FILE *f = NULL;
-
-	if( ( f = fopen( fname, "wb" ) ) == NULL ) {
-		printf(" failed\n\n\t ! fopen(%s,wb) failed\n", fname);
-		return -1;
-	}
-
-	int ret = mbedtls_mpi_write_file( NULL, mp, 16, f );
-	fclose( f );
-
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_write_file( %s ) returned %d\n",fname, ret );
-		fflush(stdout);
-		return ret;
-	}
-
-	return 0;
-}
-
 int read_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q, char *d_fname, char *QX_fname, char *QY_fname, char *QZ_fname ) {
 	int ret = 1;
 
@@ -271,30 +298,6 @@ int write_ec_keypair( mbedtls_mpi *d, mbedtls_ecp_point *Q, char *d_fname, char 
 
 	if( QZ_fname )
 		CHECK_AND_RET( write_hexmpi_from_file( &Q->Z, QZ_fname) );
-
-	return 0;
-}
-
-int read_fbuffer( char *fname, FILE *fp, unsigned char *ptr, size_t len) {
-	FILE *f = fp;
-
-	int close_file = 1;
-	if ( f )
-		close_file = 0;
-
-	if( !f && (f = fopen(fname, "rb")) == NULL ){
-		printf(" . fopen(%s, rb) failed\n", fname);
-		return -1;
-	}
-
-	size_t ret = fread( ptr, 1, len, f );
-	if( close_file )
-		fclose( f );
-
-	if( ret != len ) {
-		printf("  . fread(%s) read %zd instead of %zd from failed\n", fname, ret, len);
-		return ret;
-	}
 
 	return 0;
 }
