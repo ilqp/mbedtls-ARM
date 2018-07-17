@@ -268,56 +268,6 @@ int read_fbuffer( char *fname, FILE *fp, unsigned char *ptr, size_t len) {
 	return 0;
 }
 
-int read_server_key_material( mbedtls_ecp_point *Qp) {
-
-	FILE *f_srv_QX = NULL;
-	FILE *f_srv_QY = NULL;
-
-	int ret = 1;
-	/*
-	 * Open the files containing servers public key
-	 */
-	if( ( f_srv_QX = fopen( "srv_QX.bin", "rb" ) ) == NULL ) {
-		printf( " failed\n\n\t ! Unable to open srv_QX.bin\n");
-		return -1;
-	}
-
-	if( ( f_srv_QY = fopen( "srv_QY.bin", "rb" ) ) == NULL ) {
-		printf( " failed\n\n\t ! Unable to open srv_QY.bin\n");
-		fclose( f_srv_QX );
-		return -1;
-	}
-
-	/*
-	 * Read X and Y coordinates of server public key.
-	 */
-	ret = mbedtls_mpi_read_file( &Qp->X, 16, f_srv_QX );
-	fclose( f_srv_QX );
-
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_read_file() returned %d\n", ret ), fflush(stdout);
-		return ret;
-	}
-
-	ret = mbedtls_mpi_read_file(&Qp->Y, 16, f_srv_QY);
-	fclose( f_srv_QY );
-
-	if( ret != 0 ) {
-		printf( " failed\n\n\t ! mbedtls_mpi_read_file() returned %d\n", ret ), fflush(stdout);
-		return ret;
-	}
-
-	/*
-	 * SECP256R1 curves Z coordinates are set to 1.
-	 */
-	ret = mbedtls_mpi_lset( &Qp->Z, 1 );
-	if( ret != 0 ) {
-		printf( " failed\n  ! mbedtls_mpi_lset returned %d\n", ret ), fflush(stdout);
-	}
-
-	return ret;
-}
-
 int compute_shared_key( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 	return mbedtls_ecdh_compute_shared( &ctx->grp, &ctx->z, &ctx->Qp, &ctx->d,
 					   mbedtls_ctr_drbg_random, ctr_drbg_ctx );
