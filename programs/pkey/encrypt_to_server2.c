@@ -66,6 +66,37 @@ typedef struct {
 } aes_key_t;
 
 /*
+ * Context init and free
+ */
+
+void _mbedtls_ecdh_context_init(_mbedtls_ecdh_context *enc_ctx) {
+	memset( enc_ctx, 0, sizeof( _mbedtls_ecdh_context ) );
+}
+
+void _mbedtls_ecdh_context_free(_mbedtls_ecdh_context *enc_ctx) {
+	if( enc_ctx == NULL) return;
+
+	mbedtls_ecp_group_free( &enc_ctx->grp );
+	mbedtls_ecp_point_free( &enc_ctx->Q   );
+	mbedtls_ecp_point_free( &enc_ctx->Qp  );
+	mbedtls_mpi_free( &enc_ctx->d  );
+	mbedtls_mpi_free( &enc_ctx->z  );
+}
+
+void aes_key_init( aes_key_t *aes_key, size_t key_len, size_t iv_len) {
+	if(aes_key->key) free( aes_key->key );
+	if(aes_key->IV) free( aes_key->IV );
+
+	aes_key->key = (unsigned char *) malloc(key_len);
+	aes_key->IV = (unsigned char *) malloc(iv_len);
+}
+
+void aes_free( aes_key_t *aes_key ) {
+	if( aes_key->key ) free(aes_key->key);
+	if( aes_key->IV ) free(aes_key->IV);
+}
+
+/*
  * Utility functions
  */
 
@@ -271,20 +302,6 @@ int read_fbuffer( char *fname, FILE *fp, unsigned char *ptr, size_t len) {
 int compute_shared_key( _mbedtls_ecdh_context *ctx, mbedtls_ctr_drbg_context *ctr_drbg_ctx) {
 	return mbedtls_ecdh_compute_shared( &ctx->grp, &ctx->z, &ctx->Qp, &ctx->d,
 					   mbedtls_ctr_drbg_random, ctr_drbg_ctx );
-}
-
-void _mbedtls_ecdh_context_init(_mbedtls_ecdh_context *enc_ctx) {
-	memset( enc_ctx, 0, sizeof( _mbedtls_ecdh_context ) );
-}
-
-void _mbedtls_ecdh_context_free(_mbedtls_ecdh_context *enc_ctx) {
-	if( enc_ctx == NULL) return;
-
-	mbedtls_ecp_group_free( &enc_ctx->grp );
-	mbedtls_ecp_point_free( &enc_ctx->Q   );
-	mbedtls_ecp_point_free( &enc_ctx->Qp  );
-	mbedtls_mpi_free( &enc_ctx->d  );
-	mbedtls_mpi_free( &enc_ctx->z  );
 }
 
 int ecdh_init(_mbedtls_ecdh_context *ctx) {
@@ -537,13 +554,6 @@ int read_aes_key_material( aes_key_t *aes_key ) {
 }
 #endif // USE_PERSISTED_AES_KEY_MATERIAL
 
-void aes_key_init( aes_key_t *aes_key, size_t key_len, size_t iv_len) {
-	if(aes_key->key) free( aes_key->key );
-	if(aes_key->IV) free( aes_key->IV );
-
-	aes_key->key = (unsigned char *) malloc(key_len);
-	aes_key->IV = (unsigned char *) malloc(iv_len);
-}
 int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context *ctr_drbg_ctx, mbedtls_md_context_t *sha_ctx) {
 	size_t keylen;
 	int ret = 1;
@@ -598,11 +608,6 @@ int aes_key_gen(aes_key_t *aes_key, size_t keylen_bits, mbedtls_ctr_drbg_context
 	aes_key->keylen_bits = keylen * 8;
 
 	return ret;
-}
-
-void aes_free( aes_key_t *aes_key ) {
-	if( aes_key->key ) free(aes_key->key);
-	if( aes_key->IV ) free(aes_key->IV);
 }
 
 int do_aes_gcm_encrypt( mbedtls_gcm_context *gcm_ctx, aes_key_t *aes_key, FILE *fin, FILE *fout,
